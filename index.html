@@ -3388,52 +3388,62 @@ async function initSatgasSchedule(){
   await setDoc(doc(db,'satgas_config','schedule'),{tims,weekTims,lastRotateDate:''},{ merge:false });
 }
 
+function hideLoader(){
+  const el = document.getElementById('loaderOverlay');
+  if(el && !el.classList.contains('hide')) el.classList.add('hide');
+}
+
 async function init(){
-  
-  const loaderTimeout = setTimeout(()=>{
-    const el = document.getElementById('loaderOverlay');
-    if(el && !el.classList.contains('hide')) el.classList.add('hide');
-  }, 6000);
+  // Sembunyikan loader setelah max 3 detik apapun yang terjadi
+  const loaderTimeout = setTimeout(hideLoader, 3000);
 
-  try{ await initDefaultAccounts(); }catch(e){}
-  try{ await initSatgasSchedule(); }catch(e){}
-  try{ loadPublicInfos(); }catch(e){}
-  try{ loadPublicEvents(); }catch(e){}
-  try{ loadStrukturPublic(); }catch(e){}
-
+  // Cek sesi lebih dulu — jika ada sesi valid, langsung masuk dashboard
   const session = checkSession();
   if(session){
-    
     try{
-      const snap = await getDoc(doc(db,'accounts', session.uid));
+      const snap = await Promise.race([
+        getDoc(doc(db,'accounts', session.uid)),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),4000))
+      ]);
       if(snap.exists()){
         const fresh = snap.data();
         currentUser = {...fresh, uid: session.uid, org: session.org, username: session.username,
           expires: session.expires, remember: session.remember};
-        
         if(localStorage.getItem('mpos_session')){
           localStorage.setItem('mpos_session', JSON.stringify({...currentUser, expires: session.expires, remember: session.remember}));
         }
+        clearTimeout(loaderTimeout);
+        hideLoader();
         enterDash();
       } else {
-        
         localStorage.removeItem('mpos_session');
         sessionStorage.removeItem('mpos_session');
+        clearTimeout(loaderTimeout);
+        hideLoader();
       }
     }catch(e){
-      
-      
       localStorage.removeItem('mpos_session');
       sessionStorage.removeItem('mpos_session');
-      showNotif('Tidak bisa terhubung ke server. Buka via web server, bukan file://', 'error');
+      clearTimeout(loaderTimeout);
+      hideLoader();
+      if(e.message !== 'timeout'){
+        showNotif('Tidak bisa terhubung ke server. Buka via web server, bukan file://', 'error');
+      }
     }
+  } else {
+    // Tidak ada sesi — tampilkan halaman guest, sembunyikan loader segera
+    clearTimeout(loaderTimeout);
+    hideLoader();
   }
 
-  clearTimeout(loaderTimeout);
+  // Jalankan operasi background tanpa memblokir loader
   setTimeout(()=>{
-    const el = document.getElementById('loaderOverlay');
-    if(el) el.classList.add('hide');
-  }, 400);
+    try{ initDefaultAccounts(); }catch(e){}
+    try{ initSatgasSchedule(); }catch(e){}
+    try{ loadPublicInfos(); }catch(e){}
+    try{ loadPublicEvents(); }catch(e){}
+    try{ loadStrukturPublic(); }catch(e){}
+  }, 100);
 }
 
 init();
