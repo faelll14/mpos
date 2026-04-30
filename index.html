@@ -3746,9 +3746,13 @@ async function loadStrukturPublic(){
   if(!el) return;
 
   let email = 'astracaryaorg@gmail.com';
+  let ig = 'mpkosissman14depok';
   try{
     const cfgSnap = await getDoc(doc(db,'config','kontak'));
-    if(cfgSnap.exists() && cfgSnap.data().email) email = cfgSnap.data().email;
+    if(cfgSnap.exists()){
+      if(cfgSnap.data().email) email = cfgSnap.data().email;
+      if(cfgSnap.data().ig) ig = cfgSnap.data().ig.replace(/^@/,'');
+    }
   }catch(e){}
 
   const MPK_BPH = [
