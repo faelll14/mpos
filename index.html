@@ -2847,7 +2847,7 @@ async function loadAkunMgmt(){
   const org = currentUser.org;
   const isAdmin = ['ketos','waketos','ketumpk','waketumpk'].includes(currentUser.username);
   const adminTabs = isAdmin ? `<button class="tab-btn" onclick="switchAkunTab('reset',this)">RESET DATA</button><button class="tab-btn" onclick="switchAkunTab('backup',this)">BACKUP</button>` : '';
-  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetActivityLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Aktivitas (<span id="countActivityLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
+  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetForms" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Form &amp; Jawaban (<span id="countForms">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetActivityLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Aktivitas (<span id="countActivityLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupForms" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Form &amp; Jawaban</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
 
   window.switchAkunTab = function(tab, btn){
     document.querySelectorAll('#akunContent .tab-btn').forEach(b=>b.classList.remove('active'));
@@ -2858,58 +2858,70 @@ async function loadAkunMgmt(){
   };
 
   window.loadResetCounts = async function(){
-    const cols = ['absensi','absensi_satgas','pelanggaran','infos','events','event_registrations','logs','activity_logs','meets'];
-    const ids = ['Absensi','AbsensiSatgas','Pelanggaran','Infos','Events','Registrations','Logs','ActivityLogs','Meets'];
+    const cols = ['absensi','absensi_satgas','pelanggaran','infos','events','event_registrations','forms','form_responses','logs','activity_logs','meets'];
+    const ids = ['Absensi','AbsensiSatgas','Pelanggaran','Infos','Events','Registrations','Forms','FormResponses','Logs','ActivityLogs','Meets'];
     for(let i=0;i<cols.length;i++){
       try{
         const s = await getDocs(collection(db,cols[i]));
-        const el = document.getElementById('count'+ids[i]);
-        if(el) el.textContent = s.size;
+        const elId = 'count'+ids[i];
+        if(ids[i]==='Forms'||ids[i]==='FormResponses'){
+          const fe = document.getElementById('countForms');
+          if(fe){
+            const cur = parseInt(fe.textContent)||0;
+            fe.textContent = cur + s.size;
+          }
+        } else {
+          const el = document.getElementById('count'+ids[i]);
+          if(el) el.textContent = s.size;
+        }
       }catch(e){}
     }
   };
 
   window.doResetData = async function(){
     const map = [
-      {id:'resetAbsensi',col:'absensi'},
-      {id:'resetPelanggaran',col:'pelanggaran'},
-      {id:'resetInfos',col:'infos'},
-      {id:'resetEvents',col:'events'},
-      {id:'resetRegistrations',col:'event_registrations'},
-      {id:'resetLogs',col:'logs'},
-      {id:'resetActivityLogs',col:'activity_logs'},
-      {id:'resetMeets',col:'meets'}
+      {id:'resetAbsensi',cols:['absensi','absensi_satgas']},
+      {id:'resetPelanggaran',cols:['pelanggaran']},
+      {id:'resetInfos',cols:['infos']},
+      {id:'resetEvents',cols:['events']},
+      {id:'resetRegistrations',cols:['event_registrations']},
+      {id:'resetForms',cols:['forms','form_responses']},
+      {id:'resetLogs',cols:['logs']},
+      {id:'resetActivityLogs',cols:['activity_logs']},
+      {id:'resetMeets',cols:['meets']}
     ];
     const selected = map.filter(m=>document.getElementById(m.id)?.checked);
     if(!selected.length){ showNotif('Pilih minimal satu data.','error'); return; }
-    const names = selected.map(m=>m.col).join(', ');
+    const names = selected.map(m=>m.cols.join('+')).join(', ');
     try{ await showConfirm({title:'RESET DATA',msg:'Data berikut akan dihapus permanen: '+names+'. Tindakan ini tidak bisa dibatalkan!',okLabel:'YA, HAPUS SEMUA',type:'danger'}); }catch(e){ return; }
     let total = 0;
     let blocked = [];
     for(const item of selected){
-      try{
-        const snap = await getDocs(collection(db,item.col));
-        const allDocs = snap.docs;
-        if(!allDocs.length) continue;
-        let i = 0;
-        while(i < allDocs.length){
-          const batch = writeBatch(db);
-          const chunk = allDocs.slice(i, i+500);
-          chunk.forEach(d=>{ batch.delete(doc(db,item.col,d.id)); });
-          await batch.commit();
-          total += chunk.length;
-          i += 500;
-        }
-      }catch(e){
-        if(e.code==='permission-denied'||e.message.includes('permission')){
-          blocked.push(item.col);
-        } else {
-          showNotif('Gagal hapus '+item.col+': '+e.message,'error');
+      for(const col of item.cols){
+        try{
+          const snap = await getDocs(collection(db,col));
+          const allDocs = snap.docs;
+          if(!allDocs.length) continue;
+          let i = 0;
+          while(i < allDocs.length){
+            const batch = writeBatch(db);
+            const chunk = allDocs.slice(i, i+500);
+            chunk.forEach(d=>{ batch.delete(doc(db,col,d.id)); });
+            await batch.commit();
+            total += chunk.length;
+            i += 500;
+          }
+        }catch(e){
+          if(e.code==='permission-denied'||e.message.includes('permission')){
+            blocked.push(col);
+          } else {
+            showNotif('Gagal hapus '+col+': '+e.message,'error');
+          }
         }
       }
     }
-    if(total>0){ showNotif(total+' entri berhasil dihapus.','success'); writeActivityLog('RESET DATA','Menghapus '+total+' entri dari: '+selected.map(m=>m.col).join(', ')); }
-    if(blocked.length>0) showNotif('Koleksi berikut tidak dapat dihapus (dibatasi rules): '+blocked.join(', '),'error');
+    if(total>0){ showNotif(total+' entri berhasil dihapus.','success'); writeActivityLog('RESET DATA','Menghapus '+total+' entri dari: '+selected.map(m=>m.cols.join('+')).join(', ')); }
+    if(blocked.length>0) showNotif('Koleksi berikut tidak dapat dihapus: '+blocked.join(', '),'error');
     if(total===0&&blocked.length===0) showNotif('Tidak ada data yang perlu dihapus.','info');
     window.loadResetCounts();
   };
@@ -2922,6 +2934,8 @@ async function loadAkunMgmt(){
       {id:'backupInfos',col:'infos',label:'infos'},
       {id:'backupEvents',col:'events',label:'events'},
       {id:'backupRegistrations',col:'event_registrations',label:'event_registrations'},
+      {id:'backupForms',col:'forms',label:'forms'},
+      {id:'backupForms',col:'form_responses',label:'form_responses'},
       {id:'backupLogs',col:'logs',label:'logs'},
     ];
     const backup = {exportedAt: new Date().toISOString(), org: currentUser.org};
