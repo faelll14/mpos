@@ -2471,38 +2471,65 @@ async function loadScanner(){
     return;
   }
 
-  
-  let timsData = {};
-  try{
-    const snap = await getDoc(doc(db,'satgas_config','schedule'));
-    if(snap.exists()) timsData = snap.data().tims||{};
-  }catch(e){}
+  // Pastikan jsQR sudah ter-load sebelum apapun
+  async function ensureJsQR(){
+    if(window.jsQR) return true;
+    const cdns = [
+      'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
+      'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'
+    ];
+    for(const src of cdns){
+      try{
+        await new Promise((res,rej)=>{
+          if(window.jsQR){ res(); return; }
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = ()=>{ if(window.jsQR) res(); else rej(new Error('jsQR not defined')); };
+          s.onerror = ()=>rej(new Error('load fail'));
+          document.head.appendChild(s);
+        });
+        if(window.jsQR) return true;
+      }catch(e){ console.warn('jsQR CDN failed:', src, e); }
+    }
+    return false;
+  }
 
   el.innerHTML = `
   <style>
-  #scannerModal{position:fixed;inset:0;z-index:9000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0}
-  #scannerModal .scan-header{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,0.85);z-index:1}
-  #scannerModal .scan-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#E8D5B0}
-  #scannerModal .scan-close{background:rgba(255,255,255,0.1);border:none;color:#fff;padding:6px 12px;border-radius:7px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer}
-  #qrVideoWrap{position:relative;width:100%;max-width:480px;margin:0 auto;flex:1;display:flex;flex-direction:column}
-  #qrVideo{width:100%;flex:1;object-fit:cover;display:block}
-  #qrOverlay{position:absolute;inset:0;pointer-events:none}
-  .scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:220px;border:2.5px solid #C0141C;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5)}
-  .scan-line{position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(to right,transparent,#C0141C,transparent);animation:scanLine 2s linear infinite}
-  @keyframes scanLine{0%{top:0}100%{top:100%}}
-  #scanFeedback{width:100%;max-width:480px;margin:0 auto;padding:12px 16px;min-height:64px;background:rgba(0,0,0,0.7)}
+  #scannerModal{position:fixed;inset:0;z-index:9000;background:#000;display:flex;flex-direction:column;padding:0}
+  .scan-header{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,0.9);flex-shrink:0}
+  .scan-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#E8D5B0}
+  .scan-close-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;padding:7px 14px;border-radius:7px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:background 0.15s}
+  .scan-close-btn:hover{background:rgba(255,255,255,0.2)}
+  #scanVideoWrap{position:relative;flex:1;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+  #scanVideo{width:100%;height:100%;object-fit:cover;display:block}
+  #scanCanvas{display:none}
+  .scan-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+  .scan-box{position:relative;width:240px;height:240px}
+  .scan-box-border{position:absolute;inset:0;border:2.5px solid rgba(192,20,28,0.7);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55)}
+  .scan-corner{position:absolute;width:22px;height:22px;border-color:#C0141C;border-style:solid}
+  .scan-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:6px 0 0 0}
+  .scan-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 6px 0 0}
+  .scan-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 6px}
+  .scan-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 6px 0}
+  .scan-laser{position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(to right,transparent,#C0141C 30%,#E8293D 50%,#C0141C 70%,transparent);border-radius:2px;animation:laserMove 1.8s ease-in-out infinite;box-shadow:0 0 8px rgba(192,20,28,0.8)}
+  @keyframes laserMove{0%,100%{top:8px;opacity:0.4}50%{top:calc(100% - 10px);opacity:1}}
+  #scanStatus{flex-shrink:0;padding:12px 16px;background:#0A0A0A;min-height:72px;display:flex;align-items:center;justify-content:center}
+  .scan-hint{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:0.5px;color:#777;text-align:center}
+  .scan-result-ok{color:#4ade80;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.5px;text-align:center;line-height:1.6}
+  .scan-result-err{color:#f87171;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:center;line-height:1.6}
+  .scan-result-warn{color:#facc15;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:center;line-height:1.6}
   </style>
   <div class="table-wrap" style="max-width:520px;margin-bottom:16px">
-    <div class="table-head">
-      <div class="table-head-title">SCAN QR ABSENSI</div>
-    </div>
+    <div class="table-head"><div class="table-head-title">SCAN QR ABSENSI</div></div>
     <div style="padding:16px">
-      <p style="font-size:13px;color:#aaa;margin-bottom:14px;line-height:1.7">Cukup arahkan kamera ke QR anggota. Data tim, nama, dan tanggal sudah tersimpan dalam QR secara otomatis.</p>
-      <button class="btn-primary" onclick="bukaScanner()">📷 BUKA KAMERA &amp; SCAN QR</button>
+      <p style="font-size:13px;color:#aaa;margin-bottom:14px;line-height:1.7">Arahkan kamera ke QR code anggota. Absensi tercatat otomatis.</p>
+      <button class="btn-primary" id="btnBukaScanner">📷 BUKA KAMERA &amp; SCAN QR</button>
       <div id="scanLastResult" style="margin-top:12px"></div>
     </div>
   </div>`;
 
+  // Buat modal DOM
   const existModal = document.getElementById('scannerModal');
   if(existModal) existModal.remove();
   const modal = document.createElement('div');
@@ -2510,174 +2537,278 @@ async function loadScanner(){
   modal.style.display = 'none';
   modal.innerHTML = `
     <div class="scan-header">
-      <span class="scan-title">SCAN QR</span>
-      <button class="scan-close" onclick="tutupScanner()">✕ TUTUP</button>
+      <span class="scan-title">📷 SCAN QR</span>
+      <button class="scan-close-btn" id="btnTutupScanner">✕ TUTUP</button>
     </div>
-    <div id="qrVideoWrap" style="position:relative;width:100%;flex:1;background:#000;overflow:hidden">
-      <video id="qrVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block"></video>
-      <canvas id="qrCanvas" style="display:none"></canvas>
-      <div id="qrOverlay"><div class="scan-frame"><div class="scan-line"></div></div></div>
+    <div id="scanVideoWrap">
+      <video id="scanVideo" autoplay playsinline muted webkit-playsinline></video>
+      <canvas id="scanCanvas"></canvas>
+      <div class="scan-overlay">
+        <div class="scan-box">
+          <div class="scan-box-border"></div>
+          <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+          <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+          <div class="scan-laser"></div>
+        </div>
+      </div>
     </div>
-    <div id="scanFeedback"><div style="text-align:center;color:#aaa;font-size:13px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;padding:6px 0">Arahkan kamera ke QR code anggota...</div></div>`;
+    <div id="scanStatus"><div class="scan-hint">Memuat kamera...</div></div>`;
   document.body.appendChild(modal);
 
-  let scanStream = null;
-  let scanAnimFrame = null;
-  let lastScannedRaw = null;
-  let scanCooldown = false;
-  let jsQRLoaded = false;
+  let scanStream   = null;
+  let scanRafId    = null;
+  let lastRaw      = null;
+  let cooldown     = false;
+  let processing   = false;
 
-  window.bukaScanner = async function(){
-    modal.style.display = 'flex';
-    modal.style.flexDirection = 'column';
-    try{
-      scanStream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
-        audio:false
-      });
-    }catch(e){
-      try{ scanStream = await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }catch(e2){
-        showNotif('Tidak bisa akses kamera: '+e2.message,'error');
-        modal.style.display='none'; return;
-      }
-    }
-    const video = document.getElementById('qrVideo');
-    video.srcObject = scanStream;
-    await video.play().catch(()=>{});
+  function setStatus(html){ const s=document.getElementById('scanStatus'); if(s) s.innerHTML=html; }
+  function statusHint(t){ setStatus(`<div class="scan-hint">${t}</div>`); }
+  function statusOk(t)  { setStatus(`<div class="scan-result-ok">${t}</div>`); }
+  function statusErr(t) { setStatus(`<div class="scan-result-err">${t}</div>`); }
+  function statusWarn(t){ setStatus(`<div class="scan-result-warn">${t}</div>`); }
 
-    if(!jsQRLoaded && !window.jsQR){
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script');
-        s.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
-        s.onload=()=>{ jsQRLoaded=true; res(); }; s.onerror=rej;
-        document.head.appendChild(s);
-      });
-    }
+  // ── Scan loop — sangat agresif, tiap frame ───────────────────
+  function startScanLoop(){
+    const video  = document.getElementById('scanVideo');
+    const canvas = document.getElementById('scanCanvas');
+    if(!video||!canvas) return;
+    const ctx = canvas.getContext('2d',{willReadFrequently:true});
 
-    const canvas = document.getElementById('qrCanvas');
-    const ctx = canvas.getContext('2d');
+    let frameSkip = 0;
 
     function tick(){
-      scanAnimFrame = requestAnimationFrame(tick);
-      if(scanCooldown) return;
-      const video = document.getElementById('qrVideo');
-      if(!video||video.readyState<2||video.videoWidth===0) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
-      const code = window.jsQR && window.jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'dontInvert'});
+      scanRafId = requestAnimationFrame(tick);
+      if(processing||cooldown) return;
+      if(!video||video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
+      if(!video.videoWidth||!video.videoHeight) return;
+
+      // Scan setiap frame (jangan skip — akurasi penuh)
+      frameSkip++;
+      if(frameSkip % 2 !== 0) return; // scan tiap 2 frame agar tidak overload CPU
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      canvas.width  = vw;
+      canvas.height = vh;
+      ctx.drawImage(video, 0, 0, vw, vh);
+
+      let code = null;
+
+      // 1. Scan full frame
+      try{
+        const id = ctx.getImageData(0,0,vw,vh);
+        code = window.jsQR(id.data, id.width, id.height, {inversionAttempts:'attemptBoth'});
+      }catch(e){}
+
+      // 2. Jika tidak ditemukan, crop area tengah (lebih akurat untuk QR kecil)
+      if(!code||!code.data){
+        try{
+          const cx  = Math.floor(vw*0.2), cy = Math.floor(vh*0.2);
+          const cw  = Math.floor(vw*0.6), ch = Math.floor(vh*0.6);
+          const id2 = ctx.getImageData(cx, cy, cw, ch);
+          code = window.jsQR(id2.data, id2.width, id2.height, {inversionAttempts:'attemptBoth'});
+        }catch(e){}
+      }
+
+      // 3. Jika masih tidak, scale up crop ke canvas besar (zoom)
+      if(!code||!code.data){
+        try{
+          const zCanvas = document.createElement('canvas');
+          zCanvas.width = 480; zCanvas.height = 480;
+          const zCtx = zCanvas.getContext('2d',{willReadFrequently:true});
+          const cx = Math.floor(vw*0.25), cy = Math.floor(vh*0.25);
+          const cw = Math.floor(vw*0.5),  ch = Math.floor(vh*0.5);
+          zCtx.drawImage(video, cx, cy, cw, ch, 0, 0, 480, 480);
+          const id3 = zCtx.getImageData(0,0,480,480);
+          code = window.jsQR(id3.data,480,480,{inversionAttempts:'attemptBoth'});
+        }catch(e){}
+      }
+
       if(!code||!code.data) return;
-      if(code.data===lastScannedRaw) return;
-      lastScannedRaw = code.data;
-      scanCooldown = true;
-      prosesTokenScan(code.data).then(()=>{
-        setTimeout(()=>{ scanCooldown=false; lastScannedRaw=null; },3500);
+      if(code.data === lastRaw) return;
+
+      lastRaw    = code.data;
+      processing = true;
+      cooldown   = true;
+
+      prosesTokenScan(code.data).finally(()=>{
+        processing = false;
+        setTimeout(()=>{ cooldown=false; lastRaw=null; }, 3000);
       });
     }
     tick();
+  }
+
+  // ── Buka scanner ─────────────────────────────────────────────
+  document.getElementById('btnBukaScanner').onclick = async function(){
+    modal.style.display = 'flex';
+    statusHint('Memuat kamera...');
+
+    // Load jsQR dulu
+    const qrReady = await ensureJsQR();
+    if(!qrReady){
+      statusErr('❌ Gagal memuat library scan.<br><span style="font-size:11px;color:#aaa">Periksa koneksi internet lalu coba lagi.</span>');
+      return;
+    }
+
+    // Minta izin kamera
+    const constraints = [
+      { video:{ facingMode:{exact:'environment'}, width:{ideal:1920}, height:{ideal:1080} }, audio:false },
+      { video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}  }, audio:false },
+      { video:{ facingMode:'environment'                                                   }, audio:false },
+      { video:true, audio:false }
+    ];
+
+    for(const c of constraints){
+      try{ scanStream = await navigator.mediaDevices.getUserMedia(c); if(scanStream) break; }
+      catch(e){ scanStream=null; }
+    }
+
+    if(!scanStream){
+      statusErr('❌ Tidak bisa mengakses kamera.<br><span style="font-size:11px;color:#aaa">Pastikan izin kamera diizinkan di browser.</span>');
+      modal.style.display='none';
+      showNotif('Tidak bisa akses kamera. Cek izin browser.','error');
+      return;
+    }
+
+    const video = document.getElementById('scanVideo');
+    video.srcObject = scanStream;
+    try{ await video.play(); }catch(e){}
+
+    // Tunggu video benar-benar siap
+    await new Promise(res=>{
+      if(video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA){ res(); return; }
+      video.oncanplay = ()=>res();
+      setTimeout(res, 2500); // timeout fallback
+    });
+
+    statusHint('Arahkan kamera ke QR code anggota...');
+    startScanLoop();
   };
 
+  // ── Tutup scanner ─────────────────────────────────────────────
+  function tutupScanner(){
+    if(scanRafId){ cancelAnimationFrame(scanRafId); scanRafId=null; }
+    if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
+    lastRaw=null; cooldown=false; processing=false;
+    modal.style.display='none';
+  }
+  document.getElementById('btnTutupScanner').onclick = tutupScanner;
+  window.tutupScanner = tutupScanner;
+
+  // ── Proses token QR ───────────────────────────────────────────
   async function prosesTokenScan(raw){
-    const fb = document.getElementById('scanFeedback');
-    fb.innerHTML='<div style="text-align:center;color:#60a5fa;font-size:14px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:0.5px;padding:6px 0">⏳ Memproses...</div>';
+    statusHint('⏳ Memverifikasi...');
     try{
+      // Hitung waktu WIB sekarang
+      const now       = new Date();
+      const wibOffset = 7*60;
+      const wibDate   = new Date(now.getTime() + (wibOffset - now.getTimezoneOffset())*60000);
+      const todayStr  = wibDate.getFullYear()+'-'+String(wibDate.getMonth()+1).padStart(2,'0')+'-'+String(wibDate.getDate()).padStart(2,'0');
+      const hari      = DAYS_ID[wibDate.getDay()];
+      const tgl       = wibDate.getDate();
+      const blnStr    = MONTHS_ID[wibDate.getMonth()];
+      const thn       = wibDate.getFullYear();
+      const jam       = String(wibDate.getHours()).padStart(2,'0');
+      const menit     = String(wibDate.getMinutes()).padStart(2,'0');
+      const detik     = String(wibDate.getSeconds()).padStart(2,'0');
+      const tanggalStr= `${hari}, ${tgl} ${blnStr} ${thn}`;
+      const waktuWIB  = `${hari}, ${tgl} ${blnStr} ${thn} ${jam}:${menit}:${detik} WIB`;
+
+      // Decode payload dari QR
       const payload = decodeQRPayload(raw);
-      const today = new Date();
-      // Pakai tanggal lokal WIB bukan UTC
-      const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
 
-      if(!payload||!payload.uid||!payload.name||!payload.date){
-        // Coba legacy token lookup
-        const legacySnap = await getDocs(query(collection(db,'qr_tokens'),where('token','==',raw)));
-        if(legacySnap.empty){
-          fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR TIDAK VALID</div>';
-          showNotif('QR tidak valid atau kedaluwarsa.','error');
-          return;
+      if(!payload || !payload.uid || !payload.name){
+        // Coba cari langsung di Firestore by token field (QR lama/non-encoded)
+        const snap = await getDocs(query(collection(db,'qr_tokens'),where('token','==',raw)));
+        if(snap.empty){
+          statusErr('❌ QR TIDAK VALID<br><span style="font-size:11px;color:#aaa">Bukan QR MPOS yang dikenali</span>');
+          showNotif('QR tidak valid.','error'); return;
         }
-        const legacyDoc = legacySnap.docs[0];
-        const legacyData = legacyDoc.data();
-        if(legacyData.scanned){
-          fb.innerHTML=`<div style="color:#facc15;font-size:14px;padding:11px;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.25);border-radius:8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:700">⚠️ SUDAH DI-SCAN<br><span style="font-size:11px;color:#aaa">${escHtml(legacyData.name)}</span></div>`;
-          showNotif(legacyData.name+' sudah pernah di-scan hari ini.','info');
-          return;
-        }
-        const tanggalStr2 = DAYS_ID[today.getDay()]+', '+today.getDate()+' '+MONTHS_ID[today.getMonth()]+' '+today.getFullYear();
-        await updateDoc(doc(db,'qr_tokens',legacyDoc.id),{scanned:true});
-        await addDoc(collection(db,'absensi_satgas'),{uid:legacyData.uid,nama:legacyData.name,tim:legacyData.tim||0,dicatatOleh:currentUser.name,dicatatUid:currentUser.uid,tanggal:todayStr,tanggalStr:tanggalStr2,hari:DAYS_ID[today.getDay()],ts:serverTimestamp()});
-        await addDoc(collection(db,'absensi'),{uid:legacyData.uid,nama:legacyData.name,tim:legacyData.tim||0,dicatatOleh:currentUser.name,ts:serverTimestamp()});
-        fb.innerHTML=`<div style="color:#4ade80;font-size:14px;padding:11px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:700">✅ BERHASIL HADIR<br><span style="font-size:13px">${escHtml(legacyData.name)}</span><br><span style="font-size:10px;color:#aaa">Tim ${legacyData.tim||'—'} · ${tanggalStr2}</span></div>`;
-        showNotif('✅ '+legacyData.name+' berhasil diabsen','success');
-        const lr=document.getElementById('scanLastResult'); if(lr) lr.innerHTML=`<div style="color:#4ade80;font-size:13px;padding:10px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:8px"><b>✅</b> ${escHtml(legacyData.name)} · ${tanggalStr2}</div>`;
-        return;
+        const d   = snap.docs[0];
+        const dat = d.data();
+        return await catatAbsensi(d.id, dat, dat.dateStr||todayStr, todayStr, tanggalStr, waktuWIB, hari);
       }
 
-      // Validasi tanggal - bandingkan date string lokal
-      if(payload.date !== todayStr){
-        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR SUDAH KEDALUWARSA</div>';
-        showNotif('QR hanya berlaku hari ini.','error');
-        return;
+      // Cek tanggal QR — harus hari ini (WIB)
+      if(payload.date && payload.date !== todayStr){
+        statusErr('❌ QR KEDALUWARSA<br><span style="font-size:11px;color:#aaa">QR ini dibuat untuk tanggal '+payload.date+'</span>');
+        showNotif('QR sudah kedaluwarsa.','error'); return;
       }
 
-      // Cari token di DB - coba by uid dulu, fallback ke query token
-      let qrSnap = await getDoc(doc(db,'qr_tokens',payload.uid));
-      if(!qrSnap.exists()){
-        // Fallback: cari by token field
-        const tSnap = await getDocs(query(collection(db,'qr_tokens'),where('uid','==',payload.uid)));
-        if(!tSnap.empty) qrSnap = tSnap.docs[0];
-      }
-      if(!qrSnap || !qrSnap.exists || (typeof qrSnap.exists === 'function' && !qrSnap.exists())){
-        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR TIDAK DITEMUKAN<br><span style="font-size:11px;color:#aaa">Minta anggota buka halaman QR ulang</span></div>';
-        showNotif('Token tidak ditemukan. Minta anggota buka QR ulang.','error');
-        return;
+      // Ambil data token dari Firestore
+      const tokenRef  = doc(db,'qr_tokens', payload.uid);
+      const tokenSnap = await getDoc(tokenRef);
+      if(!tokenSnap.exists()){
+        statusErr('❌ TOKEN TIDAK DITEMUKAN<br><span style="font-size:11px;color:#aaa">Minta anggota buka halaman QR-nya ulang</span>');
+        showNotif('Token tidak ditemukan di server.','error'); return;
       }
 
-      const qrDbData = qrSnap.data();
+      const dbData = tokenSnap.data();
 
-      if(qrDbData.scanned){
-        fb.innerHTML=`<div style="color:#facc15;font-size:14px;padding:11px;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.25);border-radius:8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:700">⚠️ SUDAH DI-SCAN<br><span style="font-size:11px;color:#aaa">${escHtml(payload.name)}</span></div>`;
-        showNotif(payload.name+' sudah pernah di-scan hari ini.','info');
-        return;
-      }
-
-      // Validasi session code (opsional - skip jika tidak match untuk toleransi rotasi)
-      // Hanya blokir jika token di DB benar-benar berbeda (bukan hanya session rotate)
-      const dbDateStr = qrDbData.dateStr || (qrDbData.date && (qrDbData.date.toDate ? qrDbData.date.toDate().toLocaleDateString('sv-SE') : ''));
+      // Cek tanggal token di DB
+      const dbDateStr = dbData.dateStr ||
+        (dbData.date ? (dbData.date.toDate ? dbData.date.toDate().toISOString().slice(0,10) : String(dbData.date).slice(0,10)) : null);
       if(dbDateStr && dbDateStr !== todayStr){
-        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR SUDAH KEDALUWARSA<br><span style="font-size:11px;color:#aaa">Tanggal QR tidak sesuai hari ini</span></div>';
-        showNotif('QR bukan untuk hari ini.','error');
-        return;
+        statusErr('❌ QR KEDALUWARSA<br><span style="font-size:11px;color:#aaa">Token server untuk '+dbDateStr+', bukan hari ini</span>');
+        showNotif('QR tidak berlaku hari ini.','error'); return;
       }
 
-      const tanggalStr = DAYS_ID[today.getDay()]+', '+today.getDate()+' '+MONTHS_ID[today.getMonth()]+' '+today.getFullYear();
-      const tim = payload.tim||qrDbData.tim||0;
+      // Cek sudah di-scan
+      if(dbData.scanned){
+        statusWarn('⚠️ SUDAH DI-SCAN<br><span style="font-size:12px">'+escHtml(payload.name)+'</span><br><span style="font-size:11px;color:#aaa">Sudah tercatat hadir hari ini</span>');
+        showNotif(payload.name+' sudah di-scan hari ini.','info'); return;
+      }
 
-      await updateDoc(doc(db,'qr_tokens',payload.uid),{scanned:true});
+      // Semua valid — catat absensi
+      const tim = payload.tim || dbData.tim || 0;
+      await updateDoc(tokenRef,{scanned:true, scannedAt:serverTimestamp(), scannedBy:currentUser.name});
       await addDoc(collection(db,'absensi_satgas'),{
-        uid:payload.uid, nama:payload.name, jabatan:payload.jabatan||'',
-        org:payload.org||'', kelas:payload.kelas||'', tim,
-        dicatatOleh:currentUser.name, dicatatUid:currentUser.uid,
-        tanggal:todayStr, tanggalStr, hari:DAYS_ID[today.getDay()],
+        uid:payload.uid, nama:payload.name,
+        jabatan:payload.jabatan||dbData.jabatan||'',
+        org:payload.org||dbData.org||'',
+        kelas:payload.kelas||dbData.kelas||'',
+        tim, dicatatOleh:currentUser.name, dicatatUid:currentUser.uid,
+        tanggal:todayStr, tanggalStr, hari, waktuWIB,
         ts:serverTimestamp()
       });
-      await addDoc(collection(db,'absensi'),{uid:payload.uid,nama:payload.name,tim,dicatatOleh:currentUser.name,ts:serverTimestamp()});
+      await addDoc(collection(db,'absensi'),{
+        uid:payload.uid, nama:payload.name, tim,
+        org:payload.org||dbData.org||'',
+        dicatatOleh:currentUser.name, dicatatUid:currentUser.uid,
+        tanggal:todayStr, waktuWIB, ts:serverTimestamp()
+      });
 
-      fb.innerHTML=`<div style="color:#4ade80;font-size:14px;padding:11px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:700">✅ BERHASIL HADIR<br><span style="font-size:13px">${escHtml(payload.name)}</span><br><span style="font-size:11px;color:#aaa">${escHtml(payload.jabatan||'')} · Tim ${tim} · ${tanggalStr}</span></div>`;
-      showNotif('✅ '+payload.name+' berhasil diabsen — Tim '+tim,'success');
-      const lr=document.getElementById('scanLastResult');
-      if(lr) lr.innerHTML=`<div style="color:#4ade80;font-size:13px;padding:10px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:8px"><b>✅ Terakhir diabsen:</b> ${escHtml(payload.name)} — Tim ${tim} · ${tanggalStr}</div>`;
-    }catch(e){
-      fb.innerHTML='<div style="color:#f87171;font-size:13px;padding:11px;background:rgba(239,68,68,0.07);border-radius:8px;text-align:center">Gagal: '+escHtml(e.message)+'</div>';
-      showNotif('Gagal memproses QR: '+e.message,'error');
+      statusOk(`✅ HADIR TERCATAT<br><span style="font-size:15px">${escHtml(payload.name)}</span><br><span style="font-size:11px;color:#aaa">${escHtml(payload.jabatan||'')} · ${(payload.org||'').toUpperCase()} · Tim ${tim}</span><br><span style="font-size:11px;color:#aaa">${waktuWIB}</span>`);
+      showNotif('✅ '+payload.name+' hadir — Tim '+tim,'success');
+
+      const lr = document.getElementById('scanLastResult');
+      if(lr) lr.innerHTML=`<div style="color:#4ade80;font-size:13px;padding:11px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:8px;line-height:1.7"><b>✅ Terakhir:</b> ${escHtml(payload.name)} — Tim ${tim}<br><span style="font-size:11px;color:#aaa">${waktuWIB}</span></div>`;
+
+    }catch(err){
+      console.error('prosesTokenScan error:', err);
+      statusErr('❌ GAGAL MEMPROSES<br><span style="font-size:11px;color:#aaa">'+escHtml(err.message)+'</span>');
+      showNotif('Gagal: '+err.message,'error');
     }
   }
 
-  window.tutupScanner = function(){
-    if(scanAnimFrame){ cancelAnimationFrame(scanAnimFrame); scanAnimFrame=null; }
-    if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
-    lastScannedRaw=null; scanCooldown=false;
-    modal.style.display='none';
-  };
+  // Helper untuk token lama (non-decoded)
+  async function catatAbsensi(docId, dat, dbDateStr, todayStr, tanggalStr, waktuWIB, hari){
+    if(dbDateStr !== todayStr){
+      statusErr('❌ QR KEDALUWARSA'); showNotif('QR tidak berlaku hari ini.','error'); return;
+    }
+    if(dat.scanned){
+      statusWarn('⚠️ SUDAH DI-SCAN<br><span style="font-size:12px">'+escHtml(dat.name||'')+'</span>');
+      showNotif((dat.name||'Anggota')+' sudah di-scan.','info'); return;
+    }
+    await updateDoc(doc(db,'qr_tokens',docId),{scanned:true,scannedAt:serverTimestamp(),scannedBy:currentUser.name});
+    await addDoc(collection(db,'absensi_satgas'),{uid:dat.uid||'',nama:dat.name||'',tim:dat.tim||0,dicatatOleh:currentUser.name,dicatatUid:currentUser.uid,tanggal:todayStr,tanggalStr,hari,waktuWIB,ts:serverTimestamp()});
+    await addDoc(collection(db,'absensi'),{uid:dat.uid||'',nama:dat.name||'',tim:dat.tim||0,dicatatOleh:currentUser.name,dicatatUid:currentUser.uid,tanggal:todayStr,waktuWIB,ts:serverTimestamp()});
+    statusOk(`✅ HADIR TERCATAT<br><span style="font-size:15px">${escHtml(dat.name||'')}</span><br><span style="font-size:11px;color:#aaa">${waktuWIB}</span>`);
+    showNotif('✅ '+(dat.name||'Anggota')+' hadir','success');
+    const lr=document.getElementById('scanLastResult');
+    if(lr) lr.innerHTML=`<div style="color:#4ade80;font-size:13px;padding:11px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:8px">${escHtml(dat.name||'')} · ${waktuWIB}</div>`;
+  }
 }
 
 window.toggleAcc = function(header){
