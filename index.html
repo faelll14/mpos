@@ -706,9 +706,8 @@ async function writeLoginLog(uid, username, org){
   }catch(e){}
 }
 
-async function initDefaultAccounts(){
-  // Hanya jalankan sekali — kalau sudah pernah diinisialisasi, skip
-  if(localStorage.getItem('mpos_accounts_init') === '1') return;
+async function initDefaultAccounts(force=false){
+  if(!force && localStorage.getItem('mpos_accounts_init') === '2') return;
   const defaults = [
     {username:'ketos',password:'565656',org:'osis',role:'ketos',name:'Nataneila Akhsya Sheadyta Azaria',jabatan:'Ketua OSIS',kelas:'XI.3',canPost:true,canManage:true},
     {username:'waketos',password:'565656',org:'osis',role:'waketos',name:'Shaquila Ayesha Athallah',jabatan:'Wakil Ketua OSIS',kelas:'XI.2',canPost:true,canManage:true},
@@ -766,7 +765,7 @@ async function initDefaultAccounts(){
     const snap = await getDoc(doc(db,'accounts',id));
     if(!snap.exists()) await setDoc(doc(db,'accounts',id), acc);
   }));
-  localStorage.setItem('mpos_accounts_init', '1');
+  localStorage.setItem('mpos_accounts_init', '2');
 }
 
 window.selectOrg = function(org){
@@ -776,6 +775,9 @@ window.selectOrg = function(org){
 };
 
 window.openLoginModal = function(){
+  // Auto-clear rate limit jika sudah expired
+  const rawAttempt = localStorage.getItem(LOGIN_ATTEMPTS_KEY);
+  if(rawAttempt){ try{ const d=JSON.parse(rawAttempt); if(Date.now()>d.until) localStorage.removeItem(LOGIN_ATTEMPTS_KEY); }catch(e){ localStorage.removeItem(LOGIN_ATTEMPTS_KEY); } }
   document.getElementById('modalLogin').style.display='flex';
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
@@ -798,22 +800,36 @@ window.doLogin = async function(){
   if(!checkLoginRateLimit()){
     const raw = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY)||'{}');
     const sisa = Math.ceil((raw.until - Date.now())/60000);
-    errEl.textContent = 'Terlalu banyak percobaan. Coba lagi dalam ' + sisa + ' menit.';
-    errEl.style.display='block'; return;
+    if(sisa <= 0){
+      // Lockout sudah habis, clear dan lanjut
+      localStorage.removeItem(LOGIN_ATTEMPTS_KEY);
+    } else {
+      errEl.innerHTML='Terlalu banyak percobaan. Coba lagi dalam <b>'+sisa+' menit</b>.<br><span style="font-size:11px;color:#aaa;cursor:pointer;text-decoration:underline" onclick="localStorage.removeItem(\'mpos_login_attempts\');this.parentElement.style.display=\'none\'">Reset paksa (jika kamu pemilik device ini)</span>';
+      errEl.style.display='block'; return;
+    }
   }
 
   btn.textContent='Memuat...'; btn.disabled=true;
   try{
     const id = selectedOrg + '_' + username;
-    const snap = await getDoc(doc(db,'accounts',id));
+    let snap = await getDoc(doc(db,'accounts',id));
+    if(!snap.exists()){
+      // Coba force re-init akun default (mungkin DB di-reset)
+      btn.textContent='Inisialisasi akun...';
+      localStorage.removeItem('mpos_accounts_init');
+      await initDefaultAccounts(true);
+      snap = await getDoc(doc(db,'accounts',id));
+    }
     if(!snap.exists()){
       recordLoginAttempt(false);
-      errEl.textContent='Akun tidak ditemukan.'; errEl.style.display='block'; return;
+      errEl.innerHTML='Akun <b>'+username+'</b> tidak ditemukan di <b>'+(selectedOrg.toUpperCase())+'</b>.<br><span style="font-size:11px;color:#aaa">Pastikan pilih organisasi yang benar (MPK/OSIS)</span>';
+      errEl.style.display='block'; return;
     }
     const data = snap.data();
     if(data.org !== selectedOrg){
       recordLoginAttempt(false);
-      errEl.textContent='Akun tidak ditemukan di organisasi ini.'; errEl.style.display='block'; return;
+      errEl.innerHTML='Akun ini terdaftar di <b>'+(data.org||'').toUpperCase()+'</b>, bukan '+selectedOrg.toUpperCase()+'.';
+      errEl.style.display='block'; return;
     }
     if(data.password !== password){
       recordLoginAttempt(false);
@@ -835,7 +851,8 @@ window.doLogin = async function(){
     closeLoginModal();
     enterDash();
   }catch(e){
-    errEl.textContent = 'Gagal terhubung. Periksa koneksi.';
+    errEl.innerHTML='Gagal terhubung ke server.<br><span style="font-size:11px;color:#aaa">'+escHtml(e.message)+'</span>';
+
     errEl.style.display='block';
   }finally{
     btn.textContent='MASUK'; btn.disabled=false;
@@ -1012,7 +1029,7 @@ async function renderSatgasHariIni(){
     if(!snap.exists()){ el.innerHTML=''; return; }
     const cfg = snap.data();
     const dayMap = {1:0,2:1,3:2,4:3,5:4};
-    const weekTims = cfg.weekTims||[5,1,2,3,4];
+    const weekTims = computeWeekTims(new Date());
     const timNum = weekTims[dayMap[dayIdx]];
     const tim = (cfg.tims||{})[timNum]||{mpk:[],osis:[]};
     el.innerHTML = `<div class="table-wrap" style="margin-bottom:0"><div class="table-head"><div class="table-head-title">SATGAS HARI INI — TIM ${timNum} <span class="badge badge-red" style="margin-left:7px">${DAYS_ID[dayIdx]}</span></div></div><div style="padding:13px 16px"><div class="satgas-org"><div><div class="satgas-org-label"><span class="color-bar-mpk"></span>MPK</div><div class="satgas-names">${(tim.mpk||[]).map(n=>'<span class="name-chip">'+escHtml(n)+'</span>').join('')||'—'}</div></div><div><div class="satgas-org-label"><span class="color-bar-osis"></span>OSIS</div><div class="satgas-names">${(tim.osis||[]).map(n=>'<span class="name-chip">'+escHtml(n)+'</span>').join('')||'—'}</div></div></div></div></div>`;
@@ -1027,7 +1044,7 @@ async function isSatgasHariIni(){
     const dayIdx = new Date().getDay();
     if(dayIdx===0||dayIdx===6) return false;
     const dayMap = {1:0,2:1,3:2,4:3,5:4};
-    const weekTims = cfg.weekTims||[5,1,2,3,4];
+    const weekTims = computeWeekTims(new Date());
     const timNum = weekTims[dayMap[dayIdx]];
     const tim = (cfg.tims||{})[timNum]||{mpk:[],osis:[]};
     const allNames = [...(tim.mpk||[]), ...(tim.osis||[])].map(n=>n.toLowerCase().trim());
@@ -1116,7 +1133,7 @@ async function getTodayTim(){
     const cfg = snap.data();
     const dayIdx = new Date().getDay();
     const dayMap = {1:0,2:1,3:2,4:3,5:4};
-    const weekTims = cfg.weekTims||[5,1,2,3,4];
+    const weekTims = computeWeekTims(new Date());
     return weekTims[dayMap[dayIdx]]||0;
   }catch(e){ return 0; }
 }
@@ -1129,7 +1146,8 @@ async function loadSatgasSchedule(){
     if(!snap.exists()){ el.innerHTML='<div class="empty-state"><div class="empty-text">JADWAL BELUM DIATUR</div></div>'; return; }
     const cfg = snap.data();
     const tims = cfg.tims||{};
-    const weekTims = cfg.weekTims||[5,1,2,3,4];
+    // Selalu hitung weekTims dari tanggal sekarang agar selalu akurat
+    const weekTims = computeWeekTims(new Date());
     const todayDay = new Date().getDay();
     const tomorrowDay = todayDay === 6 ? 1 : todayDay === 5 ? 1 : todayDay + 1; // skip sunday
     const workDays = [1,2,3,4,5];
@@ -3465,13 +3483,42 @@ function startMeetListener(){
 }
 document.getElementById('meetBannerClose').onclick=()=>{ document.getElementById('meetJoinBanner').style.display='none'; };
 
-async function initSatgasSchedule(){
-  if(localStorage.getItem('mpos_satgas_init') === '1') return;
-  const snap = await getDoc(doc(db,'satgas_config','schedule'));
-  if(snap.exists() && snap.data().tims && Object.keys(snap.data().tims).length>0){
-    localStorage.setItem('mpos_satgas_init', '1');
-    return;
+// Hitung ISO week number dari sebuah Date
+function getISOWeekNumber(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Hitung weekTims berdasarkan selisih minggu dari minggu referensi (minggu 18, 2026 = minggu pertama jadwal)
+// Minggu referensi: weekTims awal = [1,2,3,4,5]
+// Tiap minggu bergeser +1 ke kanan (Tim yang paling akhir pindah ke Senin)
+function computeWeekTims(currentDate){
+  // Referensi: minggu ke-18 tahun 2026 (minggu 28 Apr - 2 Mei 2026), weekTims = [1,2,3,4,5]
+  const REF_YEAR = 2026;
+  const REF_WEEK = 18;
+  const BASE_TIMS = [1,2,3,4,5];
+  const currentWeek = getISOWeekNumber(currentDate);
+  const currentYear = currentDate.getFullYear();
+  // Hitung total selisih minggu (bisa lintas tahun)
+  let weekDiff = 0;
+  if(currentYear === REF_YEAR){
+    weekDiff = currentWeek - REF_WEEK;
+  } else if(currentYear > REF_YEAR){
+    // Estimasi sederhana: asumsi 52 minggu per tahun
+    weekDiff = (currentYear - REF_YEAR) * 52 + (currentWeek - REF_WEEK);
+  } else {
+    weekDiff = (currentYear - REF_YEAR) * 52 + (currentWeek - REF_WEEK);
   }
+  // Rotasi: setiap minggu, elemen pertama pindah ke belakang
+  // weekDiff=0 → [1,2,3,4,5], weekDiff=1 → [2,3,4,5,1], dst
+  const shift = ((weekDiff % 5) + 5) % 5;
+  return [...BASE_TIMS.slice(shift), ...BASE_TIMS.slice(0, shift)];
+}
+
+async function initSatgasSchedule(){
   const tims = {
     1:{mpk:['Amanda','Indah','Dzaskiya','Aathifah'],osis:['Fakhri','Raffael','Ashifa','Naura']},
     2:{mpk:['Arzella','Rizky','Fajhri'],osis:['Raynar','Yereen','Ninette','Affandi','Davina']},
@@ -3479,9 +3526,27 @@ async function initSatgasSchedule(){
     4:{mpk:['Ardelia','Gibran'],osis:['Langit','Jihan','Askanah','Naezila','Maliki']},
     5:{mpk:['Diva','Nayla','Zivana'],osis:['Jembar','Tazakka','Alisyafira','Radinka','Naila']}
   };
-  const weekTims = [1,2,3,4,5];
-  await setDoc(doc(db,'satgas_config','schedule'),{tims,weekTims,lastRotateDate:''},{ merge:false });
-  localStorage.setItem('mpos_satgas_init', '1');
+  try{
+    const snap = await getDoc(doc(db,'satgas_config','schedule'));
+    const now = new Date();
+    const weekTims = computeWeekTims(now);
+    const weekKey = now.getFullYear() + '-W' + String(getISOWeekNumber(now)).padStart(2,'0');
+    if(snap.exists()){
+      const data = snap.data();
+      const hasTims = data.tims && Object.keys(data.tims).length > 0;
+      // Selalu update weekTims jika sudah minggu baru atau data tims hilang
+      if(!hasTims){
+        await setDoc(doc(db,'satgas_config','schedule'),{tims, weekTims, lastRotateWeek: weekKey},{merge:false});
+      } else if(data.lastRotateWeek !== weekKey){
+        // Minggu baru: rotasi weekTims, pertahankan tims (anggota)
+        await setDoc(doc(db,'satgas_config','schedule'),{tims: data.tims, weekTims, lastRotateWeek: weekKey},{merge:false});
+      }
+    } else {
+      // Dokumen tidak ada: buat dari awal
+      await setDoc(doc(db,'satgas_config','schedule'),{tims, weekTims, lastRotateWeek: weekKey},{merge:false});
+    }
+    localStorage.setItem('mpos_satgas_init', '1');
+  }catch(e){ console.error('initSatgasSchedule error:', e); }
 }
 
 function hideLoader(){
