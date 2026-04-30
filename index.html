@@ -2502,24 +2502,17 @@ async function loadScanner(){
   el.innerHTML = `
   <style>
   #scannerModal{position:fixed;inset:0;z-index:9000;background:#000;display:flex;flex-direction:column;padding:0}
-  .scan-header{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,0.9);flex-shrink:0}
+  .scan-header{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);flex-shrink:0;position:relative;z-index:2}
   .scan-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#E8D5B0}
   .scan-close-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;padding:7px 14px;border-radius:7px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:background 0.15s}
   .scan-close-btn:hover{background:rgba(255,255,255,0.2)}
-  #scanVideoWrap{position:relative;flex:1;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
-  #scanVideo{width:100%;height:100%;object-fit:cover;display:block}
+  #scanVideoWrap{position:relative;flex:1;overflow:hidden;background:#000}
+  #scanVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   #scanCanvas{display:none}
-  .scan-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
-  .scan-box{position:relative;width:240px;height:240px}
-  .scan-box-border{position:absolute;inset:0;border:2.5px solid rgba(192,20,28,0.7);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.55)}
-  .scan-corner{position:absolute;width:22px;height:22px;border-color:#C0141C;border-style:solid}
-  .scan-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:6px 0 0 0}
-  .scan-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 6px 0 0}
-  .scan-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 6px}
-  .scan-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 6px 0}
-  .scan-laser{position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(to right,transparent,#C0141C 30%,#E8293D 50%,#C0141C 70%,transparent);border-radius:2px;animation:laserMove 1.8s ease-in-out infinite;box-shadow:0 0 8px rgba(192,20,28,0.8)}
-  @keyframes laserMove{0%,100%{top:8px;opacity:0.4}50%{top:calc(100% - 10px);opacity:1}}
-  #scanStatus{flex-shrink:0;padding:12px 16px;background:#0A0A0A;min-height:72px;display:flex;align-items:center;justify-content:center}
+  /* SVG overlay — fullscreen, pointer-events none */
+  #scanSvgOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  /* Finder box corners drawn in SVG — no separate DOM elements needed */
+  #scanStatus{flex-shrink:0;padding:13px 16px;background:#0A0A0A;min-height:76px;display:flex;align-items:center;justify-content:center}
   .scan-hint{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:0.5px;color:#777;text-align:center}
   .scan-result-ok{color:#4ade80;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.5px;text-align:center;line-height:1.6}
   .scan-result-err{color:#f87171;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-align:center;line-height:1.6}
@@ -2548,14 +2541,29 @@ async function loadScanner(){
     <div id="scanVideoWrap">
       <video id="scanVideo" autoplay playsinline muted webkit-playsinline></video>
       <canvas id="scanCanvas"></canvas>
-      <div class="scan-overlay">
-        <div class="scan-box">
-          <div class="scan-box-border"></div>
-          <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
-          <div class="scan-corner bl"></div><div class="scan-corner br"></div>
-          <div class="scan-laser"></div>
-        </div>
-      </div>
+      <svg id="scanSvgOverlay" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <mask id="scanMask">
+            <rect width="100%" height="100%" fill="white"/>
+            <rect id="svgHole" rx="14" fill="black"/>
+          </mask>
+        </defs>
+        <!-- dim background -->
+        <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
+        <!-- animated corner box -->
+        <g id="svgFinderBox">
+          <!-- corner TL -->
+          <path id="cTL" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- corner TR -->
+          <path id="cTR" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- corner BL -->
+          <path id="cBL" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- corner BR -->
+          <path id="cBR" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- success full border (hidden by default) -->
+          <rect id="svgSuccessRect" rx="14" fill="none" stroke="#4ade80" stroke-width="3" opacity="0"/>
+        </g>
+      </svg>
     </div>
     <div id="scanStatus"><div class="scan-hint">Memuat kamera...</div></div>`;
   document.body.appendChild(modal);
@@ -2566,30 +2574,140 @@ async function loadScanner(){
   let cooldown     = false;
   let processing   = false;
 
+  // ── SVG Finder Box logic (Telegram-style smooth tracking) ────
+  // Current animated position of the finder box (in video-space, then mapped to screen)
+  let fBox = null; // {cx, cy, size} in video coords, null = not tracking
+  let fTarget = null; // {cx, cy, size} in video coords
+  let fAnim = null;   // rAF id for box animation
+
+  function lerp(a, b, t){ return a + (b - a) * t; }
+
+  // Draw the SVG finder box at screen coordinates
+  function drawFinderBox(sx, sy, sw, sh, found){
+    const hole  = document.getElementById('svgHole');
+    const cTL   = document.getElementById('cTL');
+    const cTR   = document.getElementById('cTR');
+    const cBL   = document.getElementById('cBL');
+    const cBR   = document.getElementById('cBR');
+    const succ  = document.getElementById('svgSuccessRect');
+    if(!hole||!cTL) return;
+
+    const r = 14; // corner radius
+    const arm = Math.min(sw, sh) * 0.22; // corner arm length
+
+    // Mask hole
+    hole.setAttribute('x', sx); hole.setAttribute('y', sy);
+    hole.setAttribute('width', sw); hole.setAttribute('height', sh);
+    hole.setAttribute('rx', r);
+
+    // corner paths
+    // TL
+    cTL.setAttribute('d',`M${sx+r+arm},${sy} Q${sx+r},${sy} ${sx+r},${sy+r} L${sx+r},${sy+r+arm}`);
+    // TR
+    cTR.setAttribute('d',`M${sx+sw-r-arm},${sy} Q${sx+sw-r},${sy} ${sx+sw-r},${sy+r} L${sx+sw-r},${sy+r+arm}`);
+    // BL
+    cBL.setAttribute('d',`M${sx+r+arm},${sy+sh} Q${sx+r},${sy+sh} ${sx+r},${sy+sh-r} L${sx+r},${sy+sh-r-arm}`);
+    // BR
+    cBR.setAttribute('d',`M${sx+sw-r-arm},${sy+sh} Q${sx+sw-r},${sy+sh} ${sx+sw-r},${sy+sh-r} L${sx+sw-r},${sy+sh-r-arm}`);
+
+    // Success border
+    succ.setAttribute('x', sx); succ.setAttribute('y', sy);
+    succ.setAttribute('width', sw); succ.setAttribute('height', sh);
+    succ.setAttribute('rx', r);
+
+    if(found === 'ok'){
+      succ.setAttribute('opacity','1');
+      cTL.setAttribute('stroke','#4ade80'); cTR.setAttribute('stroke','#4ade80');
+      cBL.setAttribute('stroke','#4ade80'); cBR.setAttribute('stroke','#4ade80');
+    } else {
+      succ.setAttribute('opacity','0');
+      cTL.setAttribute('stroke','#C0141C'); cTR.setAttribute('stroke','#C0141C');
+      cBL.setAttribute('stroke','#C0141C'); cBR.setAttribute('stroke','#C0141C');
+    }
+  }
+
+  // Map video coords to screen coords (accounting for object-fit:cover)
+  function videoToScreen(vcx, vcy, vsize, video, wrap){
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const dw = wrap.clientWidth,  dh = wrap.clientHeight;
+    const scale = Math.max(dw/vw, dh/vh);
+    const rendW = vw*scale, rendH = vh*scale;
+    const offX  = (dw - rendW)/2, offY = (dh - rendH)/2;
+    const sx = vcx*scale + offX;
+    const sy = vcy*scale + offY;
+    const ss = vsize*scale;
+    return {sx, sy, sw:ss, sh:ss};
+  }
+
+  // Default (idle) box: centered on screen, 240×240 visual
+  function getIdleBox(wrap){
+    const dw = wrap.clientWidth, dh = wrap.clientHeight;
+    const size = Math.min(dw, dh) * 0.6;
+    return { sx: (dw-size)/2, sy: (dh-size)/2, sw: size, sh: size };
+  }
+
+  // Animate the box towards fTarget using lerp
+  function animateFinderBox(video, wrap){
+    if(!fTarget || !video || !wrap){ fAnim=null; return; }
+    const {sx:tsx, sy:tsy, sw:tsw, sh:tsh} = videoToScreen(fTarget.cx-fTarget.size/2, fTarget.cy-fTarget.size/2, fTarget.size, video, wrap);
+
+    // Initialise fBox to idle position on first frame
+    if(!fBox){
+      const idle = getIdleBox(wrap);
+      fBox = {sx:idle.sx, sy:idle.sy, sw:idle.sw, sh:idle.sh};
+    }
+
+    const spd = 0.18; // lerp speed — smooth like Telegram
+    fBox.sx = lerp(fBox.sx, tsx, spd);
+    fBox.sy = lerp(fBox.sy, tsy, spd);
+    fBox.sw = lerp(fBox.sw, tsw, spd);
+    fBox.sh = lerp(fBox.sh, tsh, spd);
+
+    drawFinderBox(fBox.sx, fBox.sy, fBox.sw, fBox.sh, null);
+    fAnim = requestAnimationFrame(()=>animateFinderBox(video, wrap));
+  }
+
+  // Start idle rendering (no QR detected)
+  function renderIdleBox(wrap){
+    const idle = getIdleBox(wrap);
+    if(!fBox) fBox = {...idle};
+    drawFinderBox(fBox.sx, fBox.sy, fBox.sw, fBox.sh, null);
+  }
+
   function setStatus(html){ const s=document.getElementById('scanStatus'); if(s) s.innerHTML=html; }
   function statusHint(t){ setStatus(`<div class="scan-hint">${t}</div>`); }
   function statusOk(t)  { setStatus(`<div class="scan-result-ok">${t}</div>`); }
   function statusErr(t) { setStatus(`<div class="scan-result-err">${t}</div>`); }
   function statusWarn(t){ setStatus(`<div class="scan-result-warn">${t}</div>`); }
 
-  // ── Scan loop — sangat agresif, tiap frame ───────────────────
+  // ── Scan loop ───────────────────────────────────────────────
   function startScanLoop(){
     const video  = document.getElementById('scanVideo');
     const canvas = document.getElementById('scanCanvas');
-    if(!video||!canvas) return;
+    const wrap   = document.getElementById('scanVideoWrap');
+    if(!video||!canvas||!wrap) return;
     const ctx = canvas.getContext('2d',{willReadFrequently:true});
 
-    let frameSkip = 0;
+    let frameCount = 0;
+
+    // Draw idle box immediately
+    renderIdleBox(wrap);
 
     function tick(){
       scanRafId = requestAnimationFrame(tick);
-      if(processing||cooldown) return;
       if(!video||video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
       if(!video.videoWidth||!video.videoHeight) return;
 
-      // Scan setiap frame (jangan skip — akurasi penuh)
-      frameSkip++;
-      if(frameSkip % 2 !== 0) return; // scan tiap 2 frame agar tidak overload CPU
+      // Draw idle box while waiting (every frame for smooth animation)
+      if(!fTarget && !processing){
+        renderIdleBox(wrap);
+      }
+
+      if(processing||cooldown) return;
+
+      // Scan every 2 frames for perf (≈30fps on 60fps device)
+      frameCount++;
+      if(frameCount % 2 !== 0) return;
 
       const vw = video.videoWidth;
       const vh = video.videoHeight;
@@ -2599,37 +2717,70 @@ async function loadScanner(){
 
       let code = null;
 
-      // 1. Scan full frame
+      // 1. Full frame scan
       try{
         const id = ctx.getImageData(0,0,vw,vh);
-        code = window.jsQR(id.data, id.width, id.height, {inversionAttempts:'attemptBoth'});
+        code = window.jsQR(id.data, id.width, id.height, {inversionAttempts:'dontInvert'});
       }catch(e){}
 
-      // 2. Jika tidak ditemukan, crop area tengah (lebih akurat untuk QR kecil)
+      // 2. Center crop (better for small QR)
       if(!code||!code.data){
         try{
-          const cx  = Math.floor(vw*0.2), cy = Math.floor(vh*0.2);
-          const cw  = Math.floor(vw*0.6), ch = Math.floor(vh*0.6);
-          const id2 = ctx.getImageData(cx, cy, cw, ch);
-          code = window.jsQR(id2.data, id2.width, id2.height, {inversionAttempts:'attemptBoth'});
+          const cx=Math.floor(vw*0.15), cy=Math.floor(vh*0.15);
+          const cw=Math.floor(vw*0.7),  ch=Math.floor(vh*0.7);
+          const id2=ctx.getImageData(cx,cy,cw,ch);
+          code = window.jsQR(id2.data,id2.width,id2.height,{inversionAttempts:'attemptBoth'});
+          if(code&&code.data){
+            // Offset location back to full-frame coords
+            ['topLeftCorner','topRightCorner','bottomLeftCorner','bottomRightCorner'].forEach(k=>{
+              if(code.location[k]){ code.location[k].x+=cx; code.location[k].y+=cy; }
+            });
+          }
         }catch(e){}
       }
 
-      // 3. Jika masih tidak, scale up crop ke canvas besar (zoom)
+      // 3. Zoomed center crop
       if(!code||!code.data){
         try{
-          const zCanvas = document.createElement('canvas');
-          zCanvas.width = 480; zCanvas.height = 480;
-          const zCtx = zCanvas.getContext('2d',{willReadFrequently:true});
-          const cx = Math.floor(vw*0.25), cy = Math.floor(vh*0.25);
-          const cw = Math.floor(vw*0.5),  ch = Math.floor(vh*0.5);
-          zCtx.drawImage(video, cx, cy, cw, ch, 0, 0, 480, 480);
-          const id3 = zCtx.getImageData(0,0,480,480);
-          code = window.jsQR(id3.data,480,480,{inversionAttempts:'attemptBoth'});
+          const zc=document.createElement('canvas'); zc.width=512; zc.height=512;
+          const zx=zc.getContext('2d',{willReadFrequently:true});
+          const cx=Math.floor(vw*0.2),cy=Math.floor(vh*0.2);
+          const cw=Math.floor(vw*0.6),ch=Math.floor(vh*0.6);
+          zx.drawImage(video,cx,cy,cw,ch,0,0,512,512);
+          const id3=zx.getImageData(0,0,512,512);
+          code=window.jsQR(id3.data,512,512,{inversionAttempts:'attemptBoth'});
+          if(code&&code.data){
+            const scaleX=cw/512, scaleY=ch/512;
+            ['topLeftCorner','topRightCorner','bottomLeftCorner','bottomRightCorner'].forEach(k=>{
+              if(code.location[k]){ code.location[k].x=code.location[k].x*scaleX+cx; code.location[k].y=code.location[k].y*scaleY+cy; }
+            });
+          }
         }catch(e){}
       }
 
-      if(!code||!code.data) return;
+      if(!code||!code.data){
+        // Slowly drift back to idle if no QR seen
+        fTarget = null;
+        return;
+      }
+
+      // ── QR found — update finder box target ──────────────────
+      const loc = code.location;
+      if(loc && loc.topLeftCorner && loc.topRightCorner && loc.bottomLeftCorner){
+        const xs=[loc.topLeftCorner.x,loc.topRightCorner.x,loc.bottomLeftCorner.x,loc.bottomRightCorner.x];
+        const ys=[loc.topLeftCorner.y,loc.topRightCorner.y,loc.bottomLeftCorner.y,loc.bottomRightCorner.y];
+        const minX=Math.min(...xs), maxX=Math.max(...xs);
+        const minY=Math.min(...ys), maxY=Math.max(...ys);
+        const pad  = (maxX-minX)*0.12;
+        const size = Math.max(maxX-minX, maxY-minY) + pad*2;
+        const cx   = (minX+maxX)/2;
+        const cy   = (minY+maxY)/2;
+        fTarget    = {cx, cy, size};
+
+        // Start box animation if not already running
+        if(!fAnim) animateFinderBox(video, wrap);
+      }
+
       if(code.data === lastRaw) return;
 
       lastRaw    = code.data;
@@ -2638,33 +2789,34 @@ async function loadScanner(){
 
       prosesTokenScan(code.data).finally(()=>{
         processing = false;
-        setTimeout(()=>{ cooldown=false; lastRaw=null; }, 3000);
+        setTimeout(()=>{ cooldown=false; lastRaw=null; fTarget=null; fBox=null; fAnim=null; }, 2500);
       });
     }
     tick();
   }
 
-  // ── Buka scanner ─────────────────────────────────────────────
+  // ── Buka scanner ────────────────────────────────────────────
   document.getElementById('btnBukaScanner').onclick = async function(){
     modal.style.display = 'flex';
+    fBox=null; fTarget=null; fAnim=null;
     statusHint('Memuat kamera...');
 
-    // Load jsQR dulu
+    // Load jsQR
     const qrReady = await ensureJsQR();
     if(!qrReady){
       statusErr('❌ Gagal memuat library scan.<br><span style="font-size:11px;color:#aaa">Periksa koneksi internet lalu coba lagi.</span>');
       return;
     }
 
-    // Minta izin kamera
-    const constraints = [
-      { video:{ facingMode:{exact:'environment'}, width:{ideal:1920}, height:{ideal:1080} }, audio:false },
-      { video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}  }, audio:false },
-      { video:{ facingMode:'environment'                                                   }, audio:false },
+    // Minta izin kamera — coba beberapa constraint secara paralel untuk kecepatan
+    const constraintList = [
+      { video:{ facingMode:{exact:'environment'}, width:{ideal:1280}, height:{ideal:720} }, audio:false },
+      { video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }, audio:false },
+      { video:{ facingMode:'environment' }, audio:false },
       { video:true, audio:false }
     ];
 
-    for(const c of constraints){
+    for(const c of constraintList){
       try{ scanStream = await navigator.mediaDevices.getUserMedia(c); if(scanStream) break; }
       catch(e){ scanStream=null; }
     }
@@ -2678,24 +2830,26 @@ async function loadScanner(){
 
     const video = document.getElementById('scanVideo');
     video.srcObject = scanStream;
-    try{ await video.play(); }catch(e){}
 
-    // Tunggu video benar-benar siap
+    // Play + tunggu siap — dengan timeout 2 detik max agar tidak lama
+    try{ await video.play(); }catch(e){}
     await new Promise(res=>{
       if(video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA){ res(); return; }
-      video.oncanplay = ()=>res();
-      setTimeout(res, 2500); // timeout fallback
+      const onReady = ()=>{ video.removeEventListener('canplay',onReady); res(); };
+      video.addEventListener('canplay', onReady);
+      setTimeout(res, 2000);
     });
 
     statusHint('Arahkan kamera ke QR code anggota...');
     startScanLoop();
   };
 
-  // ── Tutup scanner ─────────────────────────────────────────────
+  // ── Tutup scanner ───────────────────────────────────────────
   function tutupScanner(){
     if(scanRafId){ cancelAnimationFrame(scanRafId); scanRafId=null; }
+    if(fAnim)    { cancelAnimationFrame(fAnim);     fAnim=null;     }
     if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
-    lastRaw=null; cooldown=false; processing=false;
+    lastRaw=null; cooldown=false; processing=false; fBox=null; fTarget=null;
     modal.style.display='none';
   }
   document.getElementById('btnTutupScanner').onclick = tutupScanner;
@@ -2784,11 +2938,14 @@ async function loadScanner(){
         tanggal:todayStr, waktuWIB, ts:serverTimestamp()
       });
 
+      // Flash SVG box hijau
+      if(fBox){ drawFinderBox(fBox.sx, fBox.sy, fBox.sw, fBox.sh, 'ok'); }
       statusOk(`✅ HADIR TERCATAT<br><span style="font-size:15px">${escHtml(payload.name)}</span><br><span style="font-size:11px;color:#aaa">${escHtml(payload.jabatan||'')} · ${(payload.org||'').toUpperCase()} · Tim ${tim}</span><br><span style="font-size:11px;color:#aaa">${waktuWIB}</span>`);
       showNotif('✅ '+payload.name+' hadir — Tim '+tim,'success');
 
       const lr = document.getElementById('scanLastResult');
       if(lr) lr.innerHTML=`<div style="color:#4ade80;font-size:13px;padding:11px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.18);border-radius:8px;line-height:1.7"><b>✅ Terakhir:</b> ${escHtml(payload.name)} — Tim ${tim}<br><span style="font-size:11px;color:#aaa">${waktuWIB}</span></div>`;
+      setTimeout(()=>statusHint('Arahkan kamera ke QR code berikutnya...'), 2000);
 
     }catch(err){
       console.error('prosesTokenScan error:', err);
