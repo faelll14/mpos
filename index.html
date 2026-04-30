@@ -2627,13 +2627,11 @@ window.openPublicForm = async function(formId){
   const pages = formData.pages||[];
   if(!pages.length){ showNotif('Form ini tidak memiliki halaman.','info'); return; }
 
-  // Sembunyikan halaman tamu & top-bar tamu, tampilkan halaman form
   const guestPage = document.getElementById('pageGuest');
-  const guestBar = document.getElementById('guestTopBar');
+  const guestBar  = document.getElementById('guestTopBar');
   if(guestPage) guestPage.style.display='none';
-  if(guestBar) guestBar.style.display='none';
+  if(guestBar)  guestBar.style.display='none';
 
-  // Buat/ambil halaman form
   let formPage = document.getElementById('pageFormPublic');
   if(!formPage){
     formPage = document.createElement('div');
@@ -2641,175 +2639,133 @@ window.openPublicForm = async function(formId){
     formPage.style.cssText = 'min-height:100vh;background:#0A0A0A;color:#F8F8F6';
     document.body.appendChild(formPage);
   }
-  formPage.style.display = 'block';
+  formPage.style.display='block';
   window.scrollTo(0,0);
 
   let currentPage = 0;
   let answers = {};
   let submitted = false;
 
-  function renderFormPage(){
-    if(submitted) return;
+  function buildQHtml(){
     const page = pages[currentPage];
-    const isLast = currentPage === pages.length - 1;
-
-    let questionsHtml = (page.questions||[]).map((q,qi)=>{
-      const key = 'p'+currentPage+'q'+qi;
-      const reqBadge = q.required ? '<span style="color:#C0141C;margin-left:4px">*</span>' : '<span style="font-size:10px;color:#777;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px">OPSIONAL</span>';
-      let inputHtml = '';
-      if(q.type==='text'){
-        inputHtml = `<input type="text" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}" placeholder="Jawaban singkat...">`;
-      } else if(q.type==='textarea'){
-        inputHtml = `<textarea class="textarea-input" id="fq-${key}" placeholder="Jawaban panjang...">${escHtml(answers[key]||'')}</textarea>`;
-      } else if(q.type==='radio'){
-        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:8px 0;cursor:pointer;font-size:14px"><input type="radio" name="fq-${key}" value="${escHtml(o)}" ${answers[key]===o?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join('');
-      } else if(q.type==='checkbox'){
-        const curAns = answers[key]||[];
-        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:8px 0;cursor:pointer;font-size:14px"><input type="checkbox" name="fq-${key}" value="${escHtml(o)}" ${Array.isArray(curAns)&&curAns.includes(o)?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join('');
-      } else if(q.type==='dropdown'){
-        inputHtml = `<select class="form-select" id="fq-${key}"><option value="">-- Pilih --</option>${(q.options||[]).map(o=>`<option value="${escHtml(o)}" ${answers[key]===o?'selected':''}>${escHtml(o)}</option>`).join('')}</select>`;
-      } else if(q.type==='date'){
-        inputHtml = `<input type="date" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}">`;
-      }
-      return `<div class="form-group" id="fqwrap-${key}" style="margin-bottom:20px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:18px 20px">
+    return (page.questions||[]).map((q,qi)=>{
+      const key='p'+currentPage+'q'+qi;
+      const reqBadge=q.required?'<span style="color:#C0141C;margin-left:4px">*</span>':'<span style="font-size:10px;color:#777;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px">OPSIONAL</span>';
+      let inp='';
+      if(q.type==='text')        inp=`<input type="text" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}" placeholder="Jawaban singkat...">`;
+      else if(q.type==='textarea') inp=`<textarea class="textarea-input" id="fq-${key}" placeholder="Jawaban panjang...">${escHtml(answers[key]||'')}</textarea>`;
+      else if(q.type==='radio')    inp=(q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;font-size:14px"><input type="radio" name="fq-${key}" value="${escHtml(o)}" ${answers[key]===o?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join('');
+      else if(q.type==='checkbox'){ const ca=answers[key]||[]; inp=(q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;font-size:14px"><input type="checkbox" name="fq-${key}" value="${escHtml(o)}" ${Array.isArray(ca)&&ca.includes(o)?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join(''); }
+      else if(q.type==='dropdown') inp=`<select class="form-select" id="fq-${key}"><option value="">-- Pilih --</option>${(q.options||[]).map(o=>`<option value="${escHtml(o)}" ${answers[key]===o?'selected':''}>${escHtml(o)}</option>`).join('')}</select>`;
+      else if(q.type==='date')     inp=`<input type="date" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}">`;
+      return `<div class="form-group" id="fqwrap-${key}" style="margin-bottom:18px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:18px 20px">
         <label class="form-label" style="font-size:14px;color:#F8F8F6;font-weight:600;margin-bottom:10px;display:block">${escHtml(q.label||'Pertanyaan')}${reqBadge}</label>
         <div id="fq-err-${key}" style="display:none;color:#f87171;font-size:11px;margin-bottom:8px;padding:6px 10px;background:rgba(239,68,68,0.07);border-radius:5px;border-left:3px solid #C0141C">Bagian ini wajib diisi.</div>
-        ${inputHtml}
-      </div>`;
+        ${inp}</div>`;
     }).join('');
+  }
 
-    const progressPct = pages.length > 1 ? Math.round((currentPage/(pages.length-1))*100) : 100;
-    const prevBtn = currentPage>0 ? `<button class="btn-secondary" onclick="fmPrevPage()" style="flex-shrink:0;padding:11px 22px">&#8592; SEBELUMNYA</button>` : '';
-    const nextOrSend = !isLast
-      ? `<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmNextPage()">BERIKUTNYA &#8594;</button>`
-      : `<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmSubmitForm('${formId}')">&#10003; KIRIM JAWABAN</button>`;
+  function renderFormPage(){
+    if(submitted) return;
+    const page=pages[currentPage];
+    const isLast=currentPage===pages.length-1;
+    const pct=pages.length>1?Math.round((currentPage/(pages.length-1))*100):100;
+    const prevBtn=currentPage>0?`<button class="btn-secondary" onclick="fmPrevPage()" style="flex-shrink:0;padding:11px 22px">&#8592; SEBELUMNYA</button>`:'';
+    const actionBtn=!isLast
+      ?`<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmNextPage()">BERIKUTNYA &#8594;</button>`
+      :`<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmSubmitForm('${formId}')">&#10003; KIRIM JAWABAN</button>`;
 
-    formPage.innerHTML = `
-    <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:10px 18px;display:flex;align-items:center;gap:12px">
-      <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
-      <div style="flex:1;min-width:0">
+    formPage.innerHTML=`
+    <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:11px 18px;display:flex;align-items:center;gap:12px">
+      <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:22px;line-height:1;padding:4px 7px;border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
+      <div style="flex:1;min-width:0;overflow:hidden">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#E8D5B0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(formData.judul||'Form')}</div>
       </div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#555;letter-spacing:1px;flex-shrink:0">MPK &amp; OSIS SMAN 14</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#555;letter-spacing:1px;flex-shrink:0">SMAN 14 DEPOK</div>
     </nav>
-
     <div style="max-width:680px;margin:0 auto;padding:28px 18px 60px">
-      ${formData.cover ? `<img src="${escHtml(formData.cover)}" style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:22px;display:block" onerror="this.style.display='none'">` : ''}
-
-      <div style="margin-bottom:26px">
+      ${formData.cover?`<img src="${escHtml(formData.cover)}" style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:24px;display:block" onerror="this.style.display='none'">`:''}
+      <div style="margin-bottom:28px">
         <h1 style="font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,5vw,38px);letter-spacing:3px;margin-bottom:8px;line-height:1.1">${escHtml(formData.judul||'Form')}</h1>
-        ${formData.desc ? `<p style="font-size:14px;color:#aaa;line-height:1.7;margin:0">${escHtml(formData.desc)}</p>` : ''}
+        ${formData.desc?`<p style="font-size:14px;color:#aaa;line-height:1.7;margin:0">${escHtml(formData.desc)}</p>`:''}
       </div>
-
-      ${pages.length>1 ? `<div style="margin-bottom:22px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px 16px">
+      ${pages.length>1?`<div style="margin-bottom:22px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px 16px">
         <div style="display:flex;justify-content:space-between;font-size:12px;color:#777;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;margin-bottom:8px">
           <span>HALAMAN ${currentPage+1} / ${pages.length}</span>
           <span style="color:#E8D5B0">${escHtml(page.title||'')}</span>
         </div>
         <div style="background:#242424;border-radius:4px;height:5px;overflow:hidden">
-          <div style="background:linear-gradient(to right,#C0141C,#E8293D);height:5px;border-radius:4px;width:${progressPct}%;transition:width 0.4s ease"></div>
+          <div style="background:linear-gradient(to right,#C0141C,#E8293D);height:5px;border-radius:4px;width:${pct}%;transition:width 0.4s ease"></div>
         </div>
-      </div>` : ''}
-
-      ${questionsHtml}
-
-      <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;align-items:center">
-        ${prevBtn}${nextOrSend}
-      </div>
+      </div>`:''}
+      ${buildQHtml()}
+      <div style="display:flex;gap:10px;margin-top:26px;flex-wrap:wrap;align-items:center">${prevBtn}${actionBtn}</div>
     </div>`;
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  function collectCurrentPage(){
-    const page = pages[currentPage];
-    (page.questions||[]).forEach((q,qi)=>{
-      const key = 'p'+currentPage+'q'+qi;
-      if(q.type==='checkbox'){
-        const boxes = document.querySelectorAll(`input[name="fq-${key}"]:checked`);
-        answers[key] = Array.from(boxes).map(b=>b.value);
-      } else if(q.type==='radio'){
-        const r = document.querySelector(`input[name="fq-${key}"]:checked`);
-        answers[key] = r ? r.value : '';
-      } else {
-        const inp = document.getElementById('fq-'+key);
-        if(inp) answers[key] = inp.value;
-      }
+  function collectPage(){
+    (pages[currentPage].questions||[]).forEach((q,qi)=>{
+      const key='p'+currentPage+'q'+qi;
+      if(q.type==='checkbox'){ answers[key]=Array.from(document.querySelectorAll(`input[name="fq-${key}"]:checked`)).map(b=>b.value); }
+      else if(q.type==='radio'){ const r=document.querySelector(`input[name="fq-${key}"]:checked`); answers[key]=r?r.value:''; }
+      else{ const i=document.getElementById('fq-'+key); if(i) answers[key]=i.value; }
     });
   }
 
-  function validateCurrentPage(){
-    const page = pages[currentPage];
-    let valid = true;
-    let firstErr = null;
-    (page.questions||[]).forEach((q,qi)=>{
-      const key = 'p'+currentPage+'q'+qi;
-      const errEl = document.getElementById('fq-err-'+key);
-      const wrapEl = document.getElementById('fqwrap-'+key);
+  function validatePage(){
+    let valid=true,firstErr=null;
+    (pages[currentPage].questions||[]).forEach((q,qi)=>{
+      const key='p'+currentPage+'q'+qi;
+      const errEl=document.getElementById('fq-err-'+key);
+      const wrapEl=document.getElementById('fqwrap-'+key);
       if(!errEl) return;
       if(q.required){
-        const val = answers[key];
-        const empty = !val || (Array.isArray(val) && !val.length) || (typeof val==='string' && !val.trim());
-        if(empty){
-          errEl.style.display='block';
-          if(wrapEl && valid) firstErr = wrapEl;
-          valid = false;
-        } else { errEl.style.display='none'; }
+        const v=answers[key];
+        const empty=!v||(Array.isArray(v)&&!v.length)||(typeof v==='string'&&!v.trim());
+        errEl.style.display=empty?'block':'none';
+        if(empty&&valid){firstErr=wrapEl;valid=false;}
       } else { errEl.style.display='none'; }
     });
     if(firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
     return valid;
   }
 
-  window.fmCloseForm = function(){
-    submitted = false;
+  window.fmCloseForm=function(){
+    submitted=false;
     formPage.style.display='none';
-    if(guestPage){ guestPage.style.display='block'; }
-    if(guestBar){ guestBar.style.display='flex'; }
+    if(guestPage) guestPage.style.display='block';
+    if(guestBar)  guestBar.style.display='flex';
     window.scrollTo(0,0);
   };
-  window.fmPrevPage = function(){
-    collectCurrentPage();
-    currentPage--;
-    renderFormPage();
-  };
-  window.fmNextPage = function(){
-    collectCurrentPage();
-    if(!validateCurrentPage()) return;
-    currentPage++;
-    renderFormPage();
-  };
-  window.fmSubmitForm = async function(fId){
-    collectCurrentPage();
-    if(!validateCurrentPage()) return;
-    try{
-      await showConfirm({title:'KIRIM JAWABAN',msg:'Pastikan semua jawaban sudah benar. Jawaban tidak dapat diubah setelah dikirim.',okLabel:'YA, KIRIM',type:'info'});
-    }catch(e){ return; }
+  window.fmPrevPage=function(){ collectPage(); currentPage--; renderFormPage(); };
+  window.fmNextPage=function(){ collectPage(); if(!validatePage()) return; currentPage++; renderFormPage(); };
+  window.fmSubmitForm=async function(fId){
+    collectPage();
+    if(!validatePage()) return;
+    try{ await showConfirm({title:'KIRIM JAWABAN',msg:'Pastikan semua jawaban sudah benar. Jawaban tidak dapat diubah setelah dikirim.',okLabel:'YA, KIRIM',type:'info'}); }catch(e){ return; }
     try{
       await addDoc(collection(db,'form_responses'),{
-        formId:fId,
-        formJudul:formData.judul||'',
+        formId:fId, formJudul:formData.judul||'',
         pengirim:currentUser?currentUser.name:'Anonim',
         pengirimUid:currentUser?currentUser.uid:'',
-        answers,
-        ts:serverTimestamp()
+        answers, ts:serverTimestamp()
       });
-      submitted = true;
-      formPage.innerHTML = `
-      <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:10px 18px;display:flex;align-items:center;gap:12px">
-        <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;border-radius:6px" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
+      submitted=true;
+      formPage.innerHTML=`
+      <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:11px 18px;display:flex;align-items:center;gap:12px">
+        <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:22px;line-height:1;padding:4px 7px;border-radius:6px" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#E8D5B0">${escHtml(formData.judul||'Form')}</div>
       </nav>
       <div style="max-width:500px;margin:80px auto;padding:0 18px;text-align:center">
-        <div style="font-size:52px;margin-bottom:18px">✅</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;margin-bottom:10px;color:#4ade80">TERIMA KASIH!</div>
-        <div style="font-size:14px;color:#aaa;line-height:1.7;margin-bottom:28px">Jawaban kamu sudah berhasil dikirim.</div>
-        <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="fmCloseForm()">&#8592; KEMBALI KE BERANDA</button>
+        <div style="font-size:54px;margin-bottom:20px">✅</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:3px;margin-bottom:12px;color:#4ade80">TERIMA KASIH!</div>
+        <div style="font-size:14px;color:#aaa;line-height:1.7;margin-bottom:30px">Jawaban kamu sudah berhasil dikirim.</div>
+        <button class="btn-primary" style="max-width:240px;margin:0 auto;display:block" onclick="fmCloseForm()">&#8592; KEMBALI KE BERANDA</button>
       </div>`;
       window.scrollTo(0,0);
-      writeActivityLog('KIRIM FORM','Mengirim jawaban form: '+(formData.judul||''));
-    }catch(e){
-      showNotif('Gagal mengirim jawaban: '+e.message,'error');
-    }
+      try{ writeActivityLog('KIRIM FORM','Mengirim jawaban form: '+(formData.judul||'')); }catch(e){}
+    }catch(e){ showNotif('Gagal mengirim: '+e.message,'error'); }
   };
 
   renderFormPage();
@@ -2929,6 +2885,7 @@ async function loadAkunMgmt(){
     for(let i=0;i<cols.length;i++){
       try{
         const s = await getDocs(collection(db,cols[i]));
+        const elId = 'count'+ids[i];
         if(ids[i]==='Forms'||ids[i]==='FormResponses'){
           const fe = document.getElementById('countForms');
           if(fe){
@@ -3808,34 +3765,21 @@ async function loadPublicEvents(){
 }
 
 async function loadPublicForms(){
-  const el = document.getElementById('publicFormCards');
+  const el=document.getElementById('publicFormCards');
   if(!el) return;
   try{
-    const snap = await getDocs(query(collection(db,'forms'),orderBy('ts','desc'),limit(9)));
-    if(!snap.size){
-      el.innerHTML='<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>';
-      return;
-    }
+    const snap=await getDocs(query(collection(db,'forms'),orderBy('ts','desc'),limit(9)));
+    if(!snap.size){ el.innerHTML='<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>'; return; }
     el.innerHTML='';
     snap.forEach(d=>{
       const a=d.data();
-      const desc = (a.desc||'');
-      const descShort = desc.length>50 ? desc.substring(0,50)+'...' : desc;
+      const desc=a.desc||'';
+      const descShort=desc.length>50?desc.substring(0,50)+'...':desc;
       const card=document.createElement('div');
       card.className='card';
-      card.style.cursor='pointer';
       card.onclick=()=>openPublicForm(d.id);
-      const coverHtml = a.cover
-        ? `<img src="${escHtml(a.cover)}" class="card-cover" alt="" onerror="this.style.display='none'">`
-        : `<div class="card-cover-placeholder" style="font-size:32px">📋</div>`;
-      card.innerHTML = coverHtml + `<div class="card-body">
-        <div class="card-cat">FORMULIR</div>
-        <div class="card-title">${escHtml(a.judul||'Tanpa Judul')}</div>
-        ${descShort ? `<div class="card-desc">${escHtml(descShort)}</div>` : ''}
-        <div class="card-meta" style="margin-top:10px">
-          <span class="badge badge-red" style="font-size:10px;padding:3px 10px">ISI FORM →</span>
-        </div>
-      </div>`;
+      const coverHtml=a.cover?`<img src="${escHtml(a.cover)}" class="card-cover" alt="" onerror="this.style.display='none'">`:'<div class="card-cover-placeholder" style="font-size:32px">📋</div>';
+      card.innerHTML=coverHtml+`<div class="card-body"><div class="card-cat">FORMULIR</div><div class="card-title">${escHtml(a.judul||'Tanpa Judul')}</div>${descShort?`<div class="card-desc">${escHtml(descShort)}</div>`:''}<div class="card-meta" style="margin-top:10px"><span class="badge badge-red" style="font-size:10px;padding:3px 10px">ISI FORM →</span></div></div>`;
       el.appendChild(card);
     });
   }catch(e){ el.innerHTML='<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>'; }
