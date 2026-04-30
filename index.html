@@ -469,17 +469,18 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
   <button class="meet-banner-close" id="meetBannerClose">&#x2715;</button>
 </div>
 
+<nav class="top-bar" id="guestTopBar">
+  <div class="top-bar-logos">
+    <img src="mpk.png" alt="MPK" onerror="this.style.display='none'">
+    <img src="osis.png" alt="OSIS" onerror="this.style.display='none'">
+    <span class="top-bar-title">MPOS</span>
+  </div>
+  <div>
+    <button class="btn-login" onclick="openLoginModal()">LOGIN</button>
+  </div>
+</nav>
+
 <div id="pageGuest" class="page active">
-  <nav class="top-bar">
-    <div class="top-bar-logos">
-      <img src="mpk.png" alt="MPK" onerror="this.style.display='none'">
-      <img src="osis.png" alt="OSIS" onerror="this.style.display='none'">
-      <span class="top-bar-title">MPOS</span>
-    </div>
-    <div>
-      <button class="btn-login" onclick="openLoginModal()">LOGIN</button>
-    </div>
-  </nav>
 
   <section class="hero">
     <div class="hero-bg"></div>
@@ -511,6 +512,14 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
     <div class="section-line"></div>
     <div class="cards-grid" id="publicEventCards">
       <div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA EVENT</div></div>
+    </div>
+  </div>
+
+  <div class="section" id="formPublicSection">
+    <div class="section-title">FORM <span>AKTIF</span></div>
+    <div class="section-line"></div>
+    <div class="cards-grid" id="publicFormCards">
+      <div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>
     </div>
   </div>
 
@@ -2618,12 +2627,32 @@ window.openPublicForm = async function(formId){
   const pages = formData.pages||[];
   if(!pages.length){ showNotif('Form ini tidak memiliki halaman.','info'); return; }
 
+  // Sembunyikan halaman tamu & top-bar tamu, tampilkan halaman form
+  const guestPage = document.getElementById('pageGuest');
+  const guestBar = document.getElementById('guestTopBar');
+  if(guestPage) guestPage.style.display='none';
+  if(guestBar) guestBar.style.display='none';
+
+  // Buat/ambil halaman form
+  let formPage = document.getElementById('pageFormPublic');
+  if(!formPage){
+    formPage = document.createElement('div');
+    formPage.id = 'pageFormPublic';
+    formPage.style.cssText = 'min-height:100vh;background:#0A0A0A;color:#F8F8F6';
+    document.body.appendChild(formPage);
+  }
+  formPage.style.display = 'block';
+  window.scrollTo(0,0);
+
   let currentPage = 0;
   let answers = {};
+  let submitted = false;
 
-  function renderFormModal(){
+  function renderFormPage(){
+    if(submitted) return;
     const page = pages[currentPage];
     const isLast = currentPage === pages.length - 1;
+
     let questionsHtml = (page.questions||[]).map((q,qi)=>{
       const key = 'p'+currentPage+'q'+qi;
       const reqBadge = q.required ? '<span style="color:#C0141C;margin-left:4px">*</span>' : '<span style="font-size:10px;color:#777;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px">OPSIONAL</span>';
@@ -2633,39 +2662,62 @@ window.openPublicForm = async function(formId){
       } else if(q.type==='textarea'){
         inputHtml = `<textarea class="textarea-input" id="fq-${key}" placeholder="Jawaban panjang...">${escHtml(answers[key]||'')}</textarea>`;
       } else if(q.type==='radio'){
-        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:6px 0;cursor:pointer;font-size:13px"><input type="radio" name="fq-${key}" value="${escHtml(o)}" ${answers[key]===o?'checked':''} style="accent-color:#C0141C;width:15px;height:15px"> ${escHtml(o)}</label>`).join('');
+        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:8px 0;cursor:pointer;font-size:14px"><input type="radio" name="fq-${key}" value="${escHtml(o)}" ${answers[key]===o?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join('');
       } else if(q.type==='checkbox'){
         const curAns = answers[key]||[];
-        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:6px 0;cursor:pointer;font-size:13px"><input type="checkbox" name="fq-${key}" value="${escHtml(o)}" ${Array.isArray(curAns)&&curAns.includes(o)?'checked':''} style="accent-color:#C0141C;width:15px;height:15px"> ${escHtml(o)}</label>`).join('');
+        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:8px 0;cursor:pointer;font-size:14px"><input type="checkbox" name="fq-${key}" value="${escHtml(o)}" ${Array.isArray(curAns)&&curAns.includes(o)?'checked':''} style="accent-color:#C0141C;width:16px;height:16px"> ${escHtml(o)}</label>`).join('');
       } else if(q.type==='dropdown'){
         inputHtml = `<select class="form-select" id="fq-${key}"><option value="">-- Pilih --</option>${(q.options||[]).map(o=>`<option value="${escHtml(o)}" ${answers[key]===o?'selected':''}>${escHtml(o)}</option>`).join('')}</select>`;
       } else if(q.type==='date'){
         inputHtml = `<input type="date" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}">`;
       }
-      return `<div class="form-group" id="fqwrap-${key}" style="margin-bottom:16px">
-        <label class="form-label">${escHtml(q.label||'Pertanyaan')}${reqBadge}</label>
-        <div id="fq-err-${key}" style="display:none;color:#f87171;font-size:11px;margin-bottom:5px;padding:4px 8px;background:rgba(239,68,68,0.07);border-radius:5px;border-left:3px solid #C0141C">Bagian ini wajib diisi.</div>
+      return `<div class="form-group" id="fqwrap-${key}" style="margin-bottom:20px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:18px 20px">
+        <label class="form-label" style="font-size:14px;color:#F8F8F6;font-weight:600;margin-bottom:10px;display:block">${escHtml(q.label||'Pertanyaan')}${reqBadge}</label>
+        <div id="fq-err-${key}" style="display:none;color:#f87171;font-size:11px;margin-bottom:8px;padding:6px 10px;background:rgba(239,68,68,0.07);border-radius:5px;border-left:3px solid #C0141C">Bagian ini wajib diisi.</div>
         ${inputHtml}
       </div>`;
     }).join('');
 
     const progressPct = pages.length > 1 ? Math.round((currentPage/(pages.length-1))*100) : 100;
-    const prevBtn = currentPage>0 ? `<button class="btn-secondary" onclick="fmPrevPage()" style="flex-shrink:0">&#8592; SEBELUMNYA</button>` : '';
+    const prevBtn = currentPage>0 ? `<button class="btn-secondary" onclick="fmPrevPage()" style="flex-shrink:0;padding:11px 22px">&#8592; SEBELUMNYA</button>` : '';
     const nextOrSend = !isLast
-      ? `<button class="btn-primary" style="flex:1" onclick="fmNextPage()">BERIKUTNYA &#8594;</button>`
-      : `<button class="btn-primary" style="flex:1" onclick="fmSubmitForm('${formId}')">KIRIM</button>`;
+      ? `<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmNextPage()">BERIKUTNYA &#8594;</button>`
+      : `<button class="btn-primary" style="flex:1;max-width:280px" onclick="fmSubmitForm('${formId}')">&#10003; KIRIM JAWABAN</button>`;
 
-    openGenericModal(
-      escHtml(formData.judul||'Form'),
-      `${formData.cover ? `<img src="${escHtml(formData.cover)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:12px" onerror="this.style.display='none'">` : ''}
-      ${currentPage===0&&formData.desc ? `<div style="font-size:13px;color:#aaa;margin-bottom:14px;line-height:1.7">${escHtml(formData.desc)}</div>` : ''}
-      ${pages.length>1 ? `<div style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#777;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;margin-bottom:5px"><span>HALAMAN ${currentPage+1} / ${pages.length}</span><span>${escHtml(page.title||'')}</span></div>
-        <div style="background:#1E1E1E;border-radius:4px;height:4px"><div style="background:#C0141C;height:4px;border-radius:4px;width:${progressPct}%;transition:width 0.3s"></div></div>
+    formPage.innerHTML = `
+    <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:10px 18px;display:flex;align-items:center;gap:12px">
+      <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#E8D5B0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(formData.judul||'Form')}</div>
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#555;letter-spacing:1px;flex-shrink:0">MPK &amp; OSIS SMAN 14</div>
+    </nav>
+
+    <div style="max-width:680px;margin:0 auto;padding:28px 18px 60px">
+      ${formData.cover ? `<img src="${escHtml(formData.cover)}" style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:22px;display:block" onerror="this.style.display='none'">` : ''}
+
+      <div style="margin-bottom:26px">
+        <h1 style="font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,5vw,38px);letter-spacing:3px;margin-bottom:8px;line-height:1.1">${escHtml(formData.judul||'Form')}</h1>
+        ${formData.desc ? `<p style="font-size:14px;color:#aaa;line-height:1.7;margin:0">${escHtml(formData.desc)}</p>` : ''}
+      </div>
+
+      ${pages.length>1 ? `<div style="margin-bottom:22px;background:#161616;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#777;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;margin-bottom:8px">
+          <span>HALAMAN ${currentPage+1} / ${pages.length}</span>
+          <span style="color:#E8D5B0">${escHtml(page.title||'')}</span>
+        </div>
+        <div style="background:#242424;border-radius:4px;height:5px;overflow:hidden">
+          <div style="background:linear-gradient(to right,#C0141C,#E8293D);height:5px;border-radius:4px;width:${progressPct}%;transition:width 0.4s ease"></div>
+        </div>
       </div>` : ''}
+
       ${questionsHtml}
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${prevBtn}${nextOrSend}</div>`
-    );
+
+      <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;align-items:center">
+        ${prevBtn}${nextOrSend}
+      </div>
+    </div>`;
+    window.scrollTo({top:0,behavior:'smooth'});
   }
 
   function collectCurrentPage(){
@@ -2701,27 +2753,30 @@ window.openPublicForm = async function(formId){
           errEl.style.display='block';
           if(wrapEl && valid) firstErr = wrapEl;
           valid = false;
-        } else {
-          errEl.style.display='none';
-        }
-      } else {
-        errEl.style.display='none';
-      }
+        } else { errEl.style.display='none'; }
+      } else { errEl.style.display='none'; }
     });
     if(firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
     return valid;
   }
 
+  window.fmCloseForm = function(){
+    submitted = false;
+    formPage.style.display='none';
+    if(guestPage){ guestPage.style.display='block'; }
+    if(guestBar){ guestBar.style.display='flex'; }
+    window.scrollTo(0,0);
+  };
   window.fmPrevPage = function(){
     collectCurrentPage();
     currentPage--;
-    renderFormModal();
+    renderFormPage();
   };
   window.fmNextPage = function(){
     collectCurrentPage();
     if(!validateCurrentPage()) return;
     currentPage++;
-    renderFormModal();
+    renderFormPage();
   };
   window.fmSubmitForm = async function(fId){
     collectCurrentPage();
@@ -2738,15 +2793,26 @@ window.openPublicForm = async function(formId){
         answers,
         ts:serverTimestamp()
       });
-      closeGenericModal();
-      showNotif('Jawaban berhasil dikirim! Terima kasih.','success');
+      submitted = true;
+      formPage.innerHTML = `
+      <nav style="position:sticky;top:0;z-index:200;background:rgba(10,10,10,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.07);padding:10px 18px;display:flex;align-items:center;gap:12px">
+        <button onclick="fmCloseForm()" style="background:none;border:none;color:#777;cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;border-radius:6px" onmouseover="this.style.color='#F8F8F6'" onmouseout="this.style.color='#777'">&#8592;</button>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#E8D5B0">${escHtml(formData.judul||'Form')}</div>
+      </nav>
+      <div style="max-width:500px;margin:80px auto;padding:0 18px;text-align:center">
+        <div style="font-size:52px;margin-bottom:18px">✅</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;margin-bottom:10px;color:#4ade80">TERIMA KASIH!</div>
+        <div style="font-size:14px;color:#aaa;line-height:1.7;margin-bottom:28px">Jawaban kamu sudah berhasil dikirim.</div>
+        <button class="btn-primary" style="max-width:220px;margin:0 auto" onclick="fmCloseForm()">&#8592; KEMBALI KE BERANDA</button>
+      </div>`;
+      window.scrollTo(0,0);
       writeActivityLog('KIRIM FORM','Mengirim jawaban form: '+(formData.judul||''));
     }catch(e){
       showNotif('Gagal mengirim jawaban: '+e.message,'error');
     }
   };
 
-  renderFormModal();
+  renderFormPage();
 };
 
 async function loadInfoMgmt(){
@@ -2847,7 +2913,7 @@ async function loadAkunMgmt(){
   const org = currentUser.org;
   const isAdmin = ['ketos','waketos','ketumpk','waketumpk'].includes(currentUser.username);
   const adminTabs = isAdmin ? `<button class="tab-btn" onclick="switchAkunTab('reset',this)">RESET DATA</button><button class="tab-btn" onclick="switchAkunTab('backup',this)">BACKUP</button>` : '';
-  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetForms" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Form &amp; Jawaban (<span id="countForms">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetActivityLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Aktivitas (<span id="countActivityLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupForms" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Form &amp; Jawaban</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
+  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi Anggota (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetAbsensiSatgas" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi Satgas Tim 1–5 (<span id="countAbsensiSatgas">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetForms" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Form &amp; Jawaban (<span id="countForms">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetActivityLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Aktivitas (<span id="countActivityLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupForms" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Form &amp; Jawaban</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
 
   window.switchAkunTab = function(tab, btn){
     document.querySelectorAll('#akunContent .tab-btn').forEach(b=>b.classList.remove('active'));
@@ -2863,7 +2929,6 @@ async function loadAkunMgmt(){
     for(let i=0;i<cols.length;i++){
       try{
         const s = await getDocs(collection(db,cols[i]));
-        const elId = 'count'+ids[i];
         if(ids[i]==='Forms'||ids[i]==='FormResponses'){
           const fe = document.getElementById('countForms');
           if(fe){
@@ -2880,7 +2945,8 @@ async function loadAkunMgmt(){
 
   window.doResetData = async function(){
     const map = [
-      {id:'resetAbsensi',cols:['absensi','absensi_satgas']},
+      {id:'resetAbsensi',cols:['absensi']},
+      {id:'resetAbsensiSatgas',cols:['absensi_satgas']},
       {id:'resetPelanggaran',cols:['pelanggaran']},
       {id:'resetInfos',cols:['infos']},
       {id:'resetEvents',cols:['events']},
@@ -3739,6 +3805,40 @@ async function loadPublicEvents(){
       el.appendChild(card);
     });
   }catch(e){}
+}
+
+async function loadPublicForms(){
+  const el = document.getElementById('publicFormCards');
+  if(!el) return;
+  try{
+    const snap = await getDocs(query(collection(db,'forms'),orderBy('ts','desc'),limit(9)));
+    if(!snap.size){
+      el.innerHTML='<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>';
+      return;
+    }
+    el.innerHTML='';
+    snap.forEach(d=>{
+      const a=d.data();
+      const desc = (a.desc||'');
+      const descShort = desc.length>50 ? desc.substring(0,50)+'...' : desc;
+      const card=document.createElement('div');
+      card.className='card';
+      card.style.cursor='pointer';
+      card.onclick=()=>openPublicForm(d.id);
+      const coverHtml = a.cover
+        ? `<img src="${escHtml(a.cover)}" class="card-cover" alt="" onerror="this.style.display='none'">`
+        : `<div class="card-cover-placeholder" style="font-size:32px">📋</div>`;
+      card.innerHTML = coverHtml + `<div class="card-body">
+        <div class="card-cat">FORMULIR</div>
+        <div class="card-title">${escHtml(a.judul||'Tanpa Judul')}</div>
+        ${descShort ? `<div class="card-desc">${escHtml(descShort)}</div>` : ''}
+        <div class="card-meta" style="margin-top:10px">
+          <span class="badge badge-red" style="font-size:10px;padding:3px 10px">ISI FORM →</span>
+        </div>
+      </div>`;
+      el.appendChild(card);
+    });
+  }catch(e){ el.innerHTML='<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">BELUM ADA FORM</div></div>'; }
 }
 
 async function loadStrukturPublic(){
@@ -4842,6 +4942,7 @@ async function init(){
     try{ initSatgasSchedule(); }catch(e){}
     try{ loadPublicInfos(); }catch(e){}
     try{ loadPublicEvents(); }catch(e){}
+    try{ loadPublicForms(); }catch(e){}
     try{ loadStrukturPublic(); }catch(e){}
   }, 100);
 }
