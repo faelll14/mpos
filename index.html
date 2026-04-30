@@ -492,7 +492,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
     <div class="hero-badges">
       <span class="badge badge-red">MPK</span>
       <span class="badge badge-cream">OSIS</span>
-      <span class="badge badge-outline">SMAN 14 DEPOK</span>
+      <span class="badge badge-outline">DIA ASTRA WIRAGUNA</span>
     </div>
   </section>
 
@@ -515,8 +515,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
   <div class="section" id="strukturSection">
     <div class="section-title">STRUKTUR <span>ORGANISASI</span></div>
     <div class="section-line"></div>
-    <img src="" alt="Struktur Organisasi" class="struktur-img" id="strukturImg" style="display:none">
-    <div id="strukturEmpty" class="empty-state"><div class="empty-icon">—</div><div class="empty-text">FOTO STRUKTUR BELUM DIUNGGAH</div></div>
+    <div id="strukturPublicContent"></div>
   </div>
 
   <footer>
@@ -609,7 +608,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
     </div>
 
     <div class="dash-panel" id="panel-struktur">
-      <div class="dash-header"><div class="dash-title">STRUKTUR ORGANISASI</div><div class="dash-subtitle">Unggah foto struktur</div></div>
+      <div class="dash-header"><div class="dash-title">STRUKTUR ORGANISASI</div><div class="dash-subtitle">Kelola kontak &amp; info organisasi</div></div>
       <div id="strukturContent"></div>
     </div>
 
@@ -1294,7 +1293,7 @@ async function loadSatgasSchedule(){
     const tims = cfg.tims||{};
     const weekTims = computeWeekTims(new Date());
     const todayDay = new Date().getDay();
-    const tomorrowDay = todayDay === 6 ? 1 : todayDay === 5 ? 1 : todayDay + 1; // skip sunday
+    const tomorrowDay = todayDay === 6 ? 1 : todayDay === 5 ? 1 : todayDay + 1;
     const workDays = [1,2,3,4,5];
     let html = '';
     workDays.forEach((d,i)=>{
@@ -1646,7 +1645,7 @@ async function loadPelanggaran(){
 
   const kelasList = ['Semua','X.1','X.2','X.3','X.4','XI.1','XI.2','XI.3','XI.4'];
   let activeKelas = 'Semua';
-  let selectedSiswa = null; // {nama, kelas, absen}
+  let selectedSiswa = null;
 
   const filterBar = kelasList.map(k=>
     `<span class="kelas-chip${k==='Semua'?' active':''}" onclick="filterKelas('${k}')">${k==='Semua'?'Semua Kelas':k}</span>`
@@ -1806,7 +1805,7 @@ async function loadPelanggaran(){
     }
 
     const now = new Date();
-    const wibOffset = 7 * 60; // menit
+    const wibOffset = 7 * 60;
     const wibDate = new Date(now.getTime() + (wibOffset - now.getTimezoneOffset()) * 60000);
     const hari    = DAYS_ID[wibDate.getDay()];
     const tgl     = String(wibDate.getDate()).padStart(2,'0');
@@ -1817,7 +1816,7 @@ async function loadPelanggaran(){
     const menit   = String(wibDate.getMinutes()).padStart(2,'0');
     const detik   = String(wibDate.getSeconds()).padStart(2,'0');
     const waktuWIB = `${hari}, ${tgl} ${blnStr} ${thn} ${jam}:${menit}:${detik} WIB`;
-    const tanggalStr = `${thn}-${bln}-${tgl}`; // format YYYY-MM-DD untuk filter
+    const tanggalStr = `${thn}-${bln}-${tgl}`;
 
     const btn = document.querySelector('#formPelanggaranWrap .btn-sm-red');
     if(btn){ btn.disabled=true; btn.textContent='Menyimpan...'; }
@@ -1852,7 +1851,7 @@ async function loadPelanggaran(){
 
   window.eksporPelanggaranCSV = async function(){
     const snap=await getDocs(query(collection(db,'pelanggaran'),orderBy('ts','desc')));
-    let csv='\uFEFF'; // BOM UTF-8 agar Excel baca benar
+    let csv='\uFEFF';
     csv+='No,Nama Siswa,Kelas,No Absen,Pelanggaran,Dicatat Oleh,Waktu\n';
     let no=1;
     snap.forEach(d=>{
@@ -2004,7 +2003,7 @@ async function loadAbsensi(){
   </div>
   <div id="absensiSummary" style="margin-top:14px"></div>`;
 
-  let activeTim = null; // null = semua
+  let activeTim = null;
 
   window.switchAbsensiTim = function(tim, btn){
     activeTim = tim;
@@ -2269,10 +2268,12 @@ async function loadAkunMgmt(){
     const names = selected.map(m=>m.col).join(', ');
     try{ await showConfirm({title:'RESET DATA',msg:'Data berikut akan dihapus permanen: '+names+'. Tindakan ini tidak bisa dibatalkan!',okLabel:'YA, HAPUS SEMUA',type:'danger'}); }catch(e){ return; }
     let total = 0;
+    let blocked = [];
     for(const item of selected){
       try{
         const snap = await getDocs(collection(db,item.col));
         const allDocs = snap.docs;
+        if(!allDocs.length) continue;
         let i = 0;
         while(i < allDocs.length){
           const batch = writeBatch(db);
@@ -2282,9 +2283,17 @@ async function loadAkunMgmt(){
           total += chunk.length;
           i += 500;
         }
-      }catch(e){ showNotif('Gagal hapus '+item.col+': '+e.message,'error'); }
+      }catch(e){
+        if(e.code==='permission-denied'||e.message.includes('permission')){
+          blocked.push(item.col);
+        } else {
+          showNotif('Gagal hapus '+item.col+': '+e.message,'error');
+        }
+      }
     }
-    showNotif(total+' entri berhasil dihapus.','success');
+    if(total>0) showNotif(total+' entri berhasil dihapus.','success');
+    if(blocked.length>0) showNotif('Koleksi berikut tidak dapat dihapus (dibatasi rules): '+blocked.join(', '),'error');
+    if(total===0&&blocked.length===0) showNotif('Tidak ada data yang perlu dihapus.','info');
     window.loadResetCounts();
   };
 
@@ -2408,22 +2417,19 @@ async function loadAkunTable(){
 
 async function loadStrukturMgmt(){
   const el = document.getElementById('strukturContent');
-  el.innerHTML = `<div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">URL GAMBAR STRUKTUR</label><input type="text" class="form-input" id="strukturUrl" placeholder="https://..."></div><button class="btn-primary" style="width:auto;padding:9px 20px;margin-top:4px" onclick="saveStruktur()">SIMPAN</button><div style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.07);padding-top:16px"><div class="form-label" style="margin-bottom:9px">PRATINJAU</div><img src="" id="strukturPreview" style="max-width:100%;border-radius:8px;display:none"></div></div></div>`;
+  el.innerHTML = `<div class="table-wrap" style="max-width:560px"><div class="table-head"><div class="table-head-title">KELOLA KONTAK ORGANISASI</div></div><div style="padding:20px"><div style="font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Ubah alamat email resmi MPOS yang ditampilkan di halaman publik. Hanya ketua &amp; wakil ketua yang dapat mengubah.</div><div class="form-group"><label class="form-label">EMAIL RESMI MPOS</label><input type="email" class="form-input" id="kontakEmail" placeholder="email@domain.com"></div><button class="btn-primary" style="width:auto;padding:9px 22px" onclick="saveKontak()">SIMPAN</button></div></div>`;
   try{
-    const snap = await getDoc(doc(db,'config','struktur'));
-    if(snap.exists()&&snap.data().url){
-      document.getElementById('strukturUrl').value=snap.data().url;
-      const prev=document.getElementById('strukturPreview');
-      prev.src=snap.data().url; prev.style.display='block';
+    const snap = await getDoc(doc(db,'config','kontak'));
+    if(snap.exists()&&snap.data().email){
+      document.getElementById('kontakEmail').value = snap.data().email;
     }
   }catch(e){}
-  window.saveStruktur = async function(){
-    const url=(document.getElementById('strukturUrl').value||'').trim();
-    if(!url){ showNotif('URL tidak boleh kosong.','error'); return; }
-    await setDoc(doc(db,'config','struktur'),{url});
-    showNotif('Struktur berhasil disimpan.','success');
-    const prev=document.getElementById('strukturPreview');
-    prev.src=url; prev.style.display='block';
+  window.saveKontak = async function(){
+    const email=(document.getElementById('kontakEmail').value||'').trim();
+    if(!email){ showNotif('Email tidak boleh kosong.','error'); return; }
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showNotif('Format email tidak valid.','error'); return; }
+    await setDoc(doc(db,'config','kontak'),{email});
+    showNotif('Email berhasil disimpan.','success');
     loadStrukturPublic();
   };
 }
@@ -2640,9 +2646,9 @@ async function loadScanner(){
   let cooldown     = false;
   let processing   = false;
 
-  let fBox = null;    // {sx, sy, sw, sh} current animated screen coords
-  let fVel = null;    // {sx, sy, sw, sh} velocity for spring physics
-  let fTarget = null; // target in video coords {cx, cy, size}
+  let fBox = null;
+  let fVel = null;
+  let fTarget = null;
   let fAnim = null;
 
   function lerp(a, b, t){ return a + (b - a) * t; }
@@ -2711,8 +2717,8 @@ async function loadScanner(){
     if(!fBox)   fBox = {...(fTarget ? target : idle)};
     if(!fVel)   fVel = {sx:0, sy:0, sw:0, sh:0};
 
-    const stiffness = 0.22;  // higher = snappier
-    const damping   = 0.72;  // higher = less oscillation
+    const stiffness = 0.22;
+    const damping   = 0.72;
 
     let settled = true;
     for(const k of ['sx','sy','sw','sh']){
@@ -3072,13 +3078,158 @@ async function loadPublicEvents(){
 }
 
 async function loadStrukturPublic(){
+  const el = document.getElementById('strukturPublicContent');
+  if(!el) return;
+
+  let email = 'astracaryaorg@gmail.com';
   try{
-    const snap = await getDoc(doc(db,'config','struktur'));
-    const img=document.getElementById('strukturImg');
-    const empty=document.getElementById('strukturEmpty');
-    if(snap.exists()&&snap.data().url){ img.src=snap.data().url; img.style.display='block'; empty.style.display='none'; }
-    else{ img.style.display='none'; empty.style.display='block'; }
+    const cfgSnap = await getDoc(doc(db,'config','kontak'));
+    if(cfgSnap.exists() && cfgSnap.data().email) email = cfgSnap.data().email;
   }catch(e){}
+
+  const MPK_BPH = [
+    {jabatan:'Ketua',nama:'Haura Nabila Ahmad',kelas:'XI.2'},
+    {jabatan:'Wakil Ketua',nama:'Faiz Kenzie Ramadhan',kelas:'XI.4'},
+    {jabatan:'Sekretaris 1',nama:'Fadhilah Kinaya Heriyanti',kelas:'X.2'},
+    {jabatan:'Sekretaris 2',nama:'Kirana Salsabila',kelas:'X.4'},
+    {jabatan:'Bendahara 1',nama:'Akhdan Mahya Rofiq',kelas:'XI.4'},
+    {jabatan:'Bendahara 2',nama:'Ryeana Putrie Aulia',kelas:'X.3'},
+  ];
+  const MPK_KOMISI = [
+    {komisi:'Komisi A: Lembaga',anggota:[
+      {nama:'Dzaskiya Rahma',kelas:'X.3'},
+      {nama:'Muhammad Fajhri Ramadhan',kelas:'X.2'},
+      {nama:'Muhammad Gibran Gandasari',kelas:'X.2'},
+    ]},
+    {komisi:'Komisi B: Pengawas OSIS, Event & Ekskul',anggota:[
+      {nama:'Arzella Kyiera Widodo',kelas:'XI.2'},
+      {nama:'Rizky Putra Ramadhan',kelas:'X.1'},
+      {nama:'Aathifah Nuraini',kelas:'X.3'},
+      {nama:'Mandala Qaddafy',kelas:'X.2'},
+    ]},
+    {komisi:'Komisi C: PDD (Publikasi, Dekorasi, Dokumentasi)',anggota:[
+      {nama:'Indah Purnama Sari',kelas:'XI.4'},
+      {nama:'Ardelia Salsa Billah',kelas:'XI.4'},
+      {nama:'Nayla Nasywa Kamila',kelas:'XI.1'},
+      {nama:'Zivana Kaysa',kelas:'X.1'},
+    ]},
+    {komisi:'Komisi D: Pengkaderan',anggota:[
+      {nama:'Diva Almira Rohim',kelas:'XI.4'},
+      {nama:'Amanda Yusuf',kelas:'XI.2'},
+    ]},
+  ];
+  const OSIS_BPH = [
+    {jabatan:'Ketua',nama:'Nataneila Akhsya Sheadyta Azaria',kelas:'XI.3'},
+    {jabatan:'Wakil Ketua',nama:'Shaquila Ayesha Athallah',kelas:'XI.2'},
+    {jabatan:'Sekretaris 1',nama:'Azka Rifdah Putri',kelas:'XI.1'},
+    {jabatan:'Sekretaris 2',nama:'Raditya Dwinanta Raihantoro',kelas:'X.4'},
+    {jabatan:'Bendahara 1',nama:'Olivia Chika Ananda',kelas:'XI.3'},
+    {jabatan:'Bendahara 2',nama:'Najwa Almirah Ismail',kelas:'X.1'},
+  ];
+  const OSIS_SEKSI = [
+    {seksi:'Seksi Bidang 1: Moral dan Spiritual dalam Berkehidupan',anggota:[
+      {nama:'Affandi Bachtiar',kelas:'X.1'},
+      {nama:'Naura Huwaida Prasya',kelas:'X.2'},
+      {nama:'Bunga Anastasia',kelas:'X.4'},
+      {nama:'Davina Zahrawati Yuhono',kelas:'X.4'},
+      {nama:'Langit Zikr Ramadhan',kelas:'XI.3'},
+    ]},
+    {seksi:'Seksi Bidang 2: Kebebasan HAM, Politik, dan Bela Negara',anggota:[
+      {nama:'Fakhri Fahrezi Setiawan',kelas:'X.1'},
+      {nama:'Yereen Fransisca Uwaubun',kelas:'X.1'},
+      {nama:'Thareq Zahran Ramadhan',kelas:'X.2'},
+      {nama:'Ayuning Iswandari',kelas:'X.3'},
+      {nama:'Naezila Tri Ambarwati',kelas:'X.3'},
+      {nama:'Fajry Al Insan',kelas:'XI.2'},
+    ]},
+    {seksi:'Seksi Bidang 3: Prestasi Akademik/Non-Akademik & Kebugaran Jasmani',anggota:[
+      {nama:'Radinka Omar Kaizan',kelas:'X.1'},
+      {nama:'Raihana Anggita Nashila',kelas:'X.2'},
+      {nama:'Ashifa Ayu Febriyanty',kelas:'X.3'},
+      {nama:'Jembar Muhammad Firdiyana',kelas:'X.4'},
+      {nama:'Jihan Zahira Prasetyo',kelas:'X.4'},
+    ]},
+    {seksi:'Seksi Bidang 4: Linguistik, Norma, dan Kebudayaan',anggota:[
+      {nama:'Ninette Nivethia Cellestyn Rahadiyat',kelas:'X.1'},
+      {nama:'Alisyafira Ramadhani',kelas:'X.1'},
+      {nama:'Muhammad Alviansyah',kelas:'X.2'},
+      {nama:'Naila Khaerani Ghaliyah',kelas:'X.4'},
+      {nama:'Raynar Rakha Ahmed Adis Afandaro',kelas:'XI.1'},
+    ]},
+    {seksi:'Seksi Bidang 5: Ilmu Komunikasi, Teknologi Maju & Kebermanfaatan',anggota:[
+      {nama:'Maliki Ghifari Ramadhan',kelas:'X.2'},
+      {nama:'Tazakka Nurunnisa',kelas:'X.2'},
+      {nama:'Askanah Irgia Nida',kelas:'X.3'},
+      {nama:'Raffael Putra Hermawan',kelas:'X.3'},
+    ]},
+  ];
+
+  function bphCard(list, warna){
+    return list.map(m=>`<div style="background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px"><div><div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${warna};margin-bottom:3px">${escHtml(m.jabatan)}</div><div style="font-size:15px;font-weight:600;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px">${escHtml(m.nama)}</div></div><span style="background:#242424;border-radius:5px;padding:2px 9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#aaa;flex-shrink:0">${escHtml(m.kelas)}</span></div>`).join('');
+  }
+
+  function komisiBlock(list, warna){
+    return list.map(k=>`<div style="margin-bottom:14px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${warna};margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.06)">${escHtml(k.komisi||k.seksi)}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${k.anggota.map(a=>`<div style="background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:7px;padding:6px 12px;display:flex;align-items:center;gap:8px"><span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600">${escHtml(a.nama)}</span><span style="font-size:10px;color:#777;letter-spacing:0.5px">${escHtml(a.kelas)}</span></div>`).join('')}</div></div>`).join('');
+  }
+
+  el.innerHTML = `
+  <div style="max-width:860px;margin:0 auto">
+    <div style="background:linear-gradient(135deg,rgba(192,20,28,0.12),rgba(192,20,28,0.04));border:1px solid rgba(192,20,28,0.25);border-radius:14px;padding:20px 24px;margin-bottom:28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#C0141C;margin-bottom:5px">PEMBINA</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px">Zilma Safitakesi</div>
+        <div style="font-size:12px;color:#777;margin-top:3px">Pembina MPK &amp; OSIS SMAN 14 Depok</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="https://instagram.com/mpos.smanpathlas" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:7px;background:#1E1E1E;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;text-decoration:none;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(192,20,28,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8D5B0" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:#E8D5B0;letter-spacing:0.5px">@mpos.smanpathlas</span>
+        </a>
+        <a href="mailto:${escHtml(email)}" style="display:flex;align-items:center;gap:7px;background:#1E1E1E;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;text-decoration:none;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(192,20,28,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8D5B0" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:#E8D5B0;letter-spacing:0.5px" id="strukturEmailDisplay">${escHtml(email)}</span>
+        </a>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <img src="mpk.png" style="width:28px;height:28px;object-fit:contain" onerror="this.style.display='none'" alt="MPK">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#E8D5B0">MPK</div>
+            <div style="font-size:10px;color:#777;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px">Majelis Perwakilan Kelas</div>
+          </div>
+        </div>
+        <div style="margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#555;margin-bottom:8px">BADAN PENGURUS HARIAN</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">${bphCard(MPK_BPH,'#C0141C')}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#555;margin-bottom:10px">KOMISI</div>
+        ${komisiBlock(MPK_KOMISI,'#C0141C')}
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <img src="osis.png" style="width:28px;height:28px;object-fit:contain" onerror="this.style.display='none'" alt="OSIS">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#E8D5B0">OSIS</div>
+            <div style="font-size:10px;color:#777;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px">Organisasi Siswa Intra Sekolah</div>
+          </div>
+        </div>
+        <div style="margin-bottom:5px;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#555;margin-bottom:8px">BADAN PENGURUS HARIAN</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">${bphCard(OSIS_BPH,'#3b82f6')}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#555;margin-bottom:10px">SEKSI BIDANG</div>
+        ${komisiBlock(OSIS_SEKSI,'#3b82f6')}
+      </div>
+
+    </div>
+  </div>
+  <style>
+  @media(max-width:700px){
+    #strukturPublicContent > div > div:last-child{ grid-template-columns:1fr !important; }
+  }
+  </style>
+  `;
 }
 
 function openInfoDetail(a){
