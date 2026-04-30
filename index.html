@@ -65,16 +65,18 @@
   "description": "Sistem manajemen digital resmi MPK dan OSIS SMA Negeri 14 Depok, Jawa Barat, Indonesia.",
   "address": {
     "@type": "PostalAddress",
-    "streetAddress": "Jl. Raden Sanim No.1",
-    "addressLocality": "Depok",
+    "streetAddress": "Jl. Buni Raya, Kelurahan Beji, Kecamatan Beji",
+    "addressLocality": "Kota Depok",
     "addressRegion": "Jawa Barat",
-    "postalCode": "16517",
+    "postalCode": "16421",
     "addressCountry": "ID"
   },
+  "identifier": {"@type":"PropertyValue","propertyID":"NPSN","value":"70002720"},
   "parentOrganization": {
     "@type": "EducationalOrganization",
     "name": "SMA Negeri 14 Depok",
-    "alternateName": ["SMAN 14 Depok", "SMA 14 Depok", "Smanel"]
+    "alternateName": ["SMAN 14 Depok", "SMA 14 Depok", "Smanel"],
+    "identifier": {"@type":"PropertyValue","propertyID":"NPSN","value":"70002720"}
   }
 }
 </script>
@@ -525,6 +527,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
     </div>
     <div class="footer-title">MPOS</div>
     <div class="footer-txt">MPK &amp; OSIS SMAN 14 Depok — Sistem Informasi &amp; Manajemen Organisasi</div>
+    <div style="font-size:11px;color:#555;margin-top:6px;letter-spacing:0.5px">Jl. Buni Raya, Kel. Beji, Kec. Beji, Kota Depok, Jawa Barat 16421 &nbsp;&middot;&nbsp; NPSN 70002720</div>
   </footer>
 </div>
 
@@ -615,6 +618,11 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
     <div class="dash-panel" id="panel-satgas-mgmt">
       <div class="dash-header"><div class="dash-title">MANAJEMEN SATGAS</div><div class="dash-subtitle">Atur tim &amp; jadwal satgas</div></div>
       <div id="satgasMgmtContent"></div>
+    </div>
+
+    <div class="dash-panel" id="panel-form">
+      <div class="dash-header"><div class="dash-title">KELOLA <span>FORM</span></div><div class="dash-subtitle">Buat &amp; kelola formulir seperti Google Form</div></div>
+      <div id="formContent"></div>
     </div>
 
     <div class="dash-panel" id="panel-logs">
@@ -845,6 +853,22 @@ async function writeLoginLog(uid, username, org){
   }catch(e){}
 }
 
+async function writeActivityLog(aksi, detail){
+  if(!currentUser) return;
+  try{
+    const now = new Date();
+    const wibOff = 7*60;
+    const wib = new Date(now.getTime()+(wibOff-now.getTimezoneOffset())*60000);
+    const hariArr=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const bulanArr=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const waktuStr=hariArr[wib.getDay()]+', '+wib.getDate()+' '+bulanArr[wib.getMonth()]+' '+wib.getFullYear()+' '+String(wib.getHours()).padStart(2,'0')+':'+String(wib.getMinutes()).padStart(2,'0')+' WIB';
+    await addDoc(collection(db,'activity_logs'),{
+      uid:currentUser.uid, username:currentUser.username||'', name:currentUser.name||'', org:currentUser.org||'',
+      aksi, detail, waktu:waktuStr, ts:serverTimestamp()
+    });
+  }catch(e){}
+}
+
 async function initDefaultAccounts(force=false){
   if(!force && localStorage.getItem('mpos_accounts_init') === '2') return;
   const defaults = [
@@ -1061,7 +1085,7 @@ function buildSidebarNav(user){
   h += nItem('absensi','Absensi',iCheck());
   h += nItem('profil','Profil Akun',iUser());
   if(sek||ldr){ h += nSec('ABSENSI'); h += nItem('scanner','Scan QR',iScan()); }
-  if(user.canPost||ldr){ h += nSec('KONTEN'); h += nItem('info','Kelola Info',iInfo()); h += nItem('event','Kelola Event',iStar()); }
+  if(user.canPost||ldr){ h += nSec('KONTEN'); h += nItem('info','Kelola Info',iInfo()); h += nItem('event','Kelola Event',iStar()); h += nItem('form','Kelola Form',iForm()); }
   if(ldr){ h += nSec('MANAJEMEN'); h += nItem('akun','Akun',iUsers()); h += nItem('satgas-mgmt','Tim Satgas',iShield()); h += nItem('struktur','Struktur Org.',iOrg()); h += nItem('logs','Log Aktivitas',iLog()); }
   nav.innerHTML = h;
   nav.querySelectorAll('.nav-item').forEach(el=>{
@@ -1089,6 +1113,7 @@ const iOrg=()=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const iLog=()=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
 const iUser=()=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const iScan=()=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M21 15v4a2 2 0 0 1-2 2h-4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><line x1="3" y1="12" x2="21" y2="12"/></svg>`;
+const iForm=()=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="11" y2="16"/></svg>`;
 
 function switchPanel(name){
   document.querySelectorAll('.dash-panel').forEach(p=>p.classList.remove('active'));
@@ -1110,6 +1135,7 @@ async function loadPanel(name){
     case 'absensi': await loadAbsensi(); break;
     case 'info': if(currentUser.canPost||isLeader(currentUser)) await loadInfoMgmt(); break;
     case 'event': if(currentUser.canPost||isLeader(currentUser)) await loadEventMgmt(); break;
+    case 'form': if(currentUser.canPost||isLeader(currentUser)) await loadFormMgmt(); break;
     case 'akun': if(isLeader(currentUser)) await loadAkunMgmt(); break;
     case 'struktur': if(isLeader(currentUser)) await loadStrukturMgmt(); break;
     case 'satgas-mgmt': if(isLeader(currentUser)) await loadSatgasMgmt(); break;
@@ -1961,11 +1987,64 @@ async function loadPelanggaranTable(){
 async function loadAbsensi(){
   const el = document.getElementById('absensiContent');
 
+  const CUTOFF_HOUR = 15;
+  const CUTOFF_MIN  = 30;
+
+  function getWIBNow(){
+    const now = new Date();
+    const wibOff = 7*60;
+    return new Date(now.getTime()+(wibOff-now.getTimezoneOffset())*60000);
+  }
+
+  function getTodayStrWIB(){
+    const wib = getWIBNow();
+    return wib.getUTCFullYear()+'-'+String(wib.getUTCMonth()+1).padStart(2,'0')+'-'+String(wib.getUTCDate()).padStart(2,'0');
+  }
+
+  function getDateStrWIB(d){
+    const wibOff=7*60;
+    const wib=new Date(d.getTime()+(wibOff-d.getTimezoneOffset())*60000);
+    return wib.getUTCFullYear()+'-'+String(wib.getUTCMonth()+1).padStart(2,'0')+'-'+String(wib.getUTCDate()).padStart(2,'0');
+  }
+
   let timsData = {};
+  let weekTimsData = [];
   try{
     const snap = await getDoc(doc(db,'satgas_config','schedule'));
-    if(snap.exists()) timsData = snap.data().tims||{};
+    if(snap.exists()){ timsData=snap.data().tims||{}; weekTimsData=snap.data().weekTims||[]; }
   }catch(e){}
+
+  function getTimForDate(dateStr){
+    const parts = dateStr.split('-');
+    const d = new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+    const dayIdx = d.getDay();
+    if(dayIdx===0||dayIdx===6) return null;
+    const dayMap={1:0,2:1,3:2,4:3,5:4};
+    const wt = weekTimsData;
+    if(!wt||!wt.length) return null;
+    const REF_YEAR=2026; const REF_WEEK=18;
+    function isoWeek(dt){
+      const dd=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));
+      const dn=dd.getUTCDay()||7;
+      dd.setUTCDate(dd.getUTCDate()+4-dn);
+      const ys=new Date(Date.UTC(dd.getUTCFullYear(),0,1));
+      return Math.ceil((((dd-ys)/86400000)+1)/7);
+    }
+    const curWeek=isoWeek(d); const curYear=d.getFullYear();
+    let weekDiff=(curYear===REF_YEAR)?(curWeek-REF_WEEK):((curYear-REF_YEAR)*52+(curWeek-REF_WEEK));
+    const BASE=[1,2,3,4,5];
+    const shift=((weekDiff%5)+5)%5;
+    const rotated=[...BASE.slice(shift),...BASE.slice(0,shift)];
+    return rotated[dayMap[dayIdx]]||null;
+  }
+
+  function getMembersForTim(timNum){
+    const t = timsData[timNum]||{mpk:[],osis:[]};
+    const all = [];
+    (t.mpk||[]).forEach(n=>all.push({nama:n,org:'mpk',tim:timNum}));
+    (t.osis||[]).forEach(n=>all.push({nama:n,org:'osis',tim:timNum}));
+    return all;
+  }
 
   const timTabs = ['Semua Tim','Tim 1','Tim 2','Tim 3','Tim 4','Tim 5'].map((t,i)=>
     `<button class="tab-btn${i===0?' active':''}" onclick="switchAbsensiTim(${i===0?'null':i},this)">${t}</button>`
@@ -1980,8 +2059,8 @@ async function loadAbsensi(){
         <input type="date" class="form-input" id="filterTanggal" style="width:160px;padding:6px 10px;font-size:13px" oninput="refreshAbsensiTable()">
         <button class="btn-sm btn-sm-outline" onclick="refreshAbsensiTable()">FILTER</button>
         <button class="btn-sm btn-sm-outline" onclick="resetFilterAbsensi()">RESET</button>
-        <button class="btn-sm btn-sm-outline" onclick="eksporAbsensiCSV()">↓ CSV</button>
-        <button class="btn-sm btn-sm-outline" onclick="eksporAbsensiPDF()">↓ PDF</button>
+        <button class="btn-sm btn-sm-outline" onclick="eksporAbsensiCSV()">&#8595; CSV</button>
+        <button class="btn-sm btn-sm-outline" onclick="eksporAbsensiPDF()">&#8595; PDF</button>
       </div>
     </div>
     <div style="overflow-x:auto">
@@ -1990,11 +2069,11 @@ async function loadAbsensi(){
           <tr>
             <th>#</th>
             <th>Nama</th>
+            <th>Org</th>
             <th>Tim</th>
-            <th>Hari</th>
             <th>Tanggal</th>
             <th>Status</th>
-            <th>Dicatat Oleh</th>
+            <th>Waktu Scan</th>
           </tr>
         </thead>
         <tbody id="absensiTbody"></tbody>
@@ -2004,13 +2083,14 @@ async function loadAbsensi(){
   <div id="absensiSummary" style="margin-top:14px"></div>`;
 
   let activeTim = null;
+  const todayStr = getTodayStrWIB();
 
   window.switchAbsensiTim = function(tim, btn){
     activeTim = tim;
     document.querySelectorAll('#absensiTimBar .tab-btn').forEach(b=>b.classList.remove('active'));
     if(btn) btn.classList.add('active');
     const title = document.getElementById('absensiTableTitle');
-    if(title) title.textContent = tim ? 'REKAP ABSENSI — TIM '+tim : 'REKAP ABSENSI — SEMUA TIM';
+    if(title) title.textContent = tim ? 'REKAP ABSENSI \u2014 TIM '+tim : 'REKAP ABSENSI \u2014 SEMUA TIM';
     refreshAbsensiTable();
   };
 
@@ -2022,90 +2102,149 @@ async function loadAbsensi(){
 
   async function getAbsensiData(){
     const tanggal = (document.getElementById('filterTanggal')?.value||'').trim();
-    let q;
     try{
-      let base = collection(db,'absensi_satgas');
       let constraints = [orderBy('ts','desc')];
       if(activeTim) constraints.push(where('tim','==',activeTim));
       if(tanggal) constraints.push(where('tanggal','==',tanggal));
-      const snap = await getDocs(query(base, ...constraints));
-      let rows = [];
-      snap.forEach(d=>rows.push({id:d.id,...d.data(),_source:'satgas'}));
-      if(rows.length===0){
-        const snap2 = await getDocs(query(collection(db,'absensi'),orderBy('ts','desc')));
-        snap2.forEach(d=>{
-          const a = d.data();
-          if(activeTim && a.tim && a.tim !== activeTim) return;
-          rows.push({id:d.id,...a,_source:'legacy'});
-        });
-        if(tanggal){
-          rows = rows.filter(r=>{
-            if(!r.ts) return false;
-            const d = r.ts.toDate ? r.ts.toDate() : new Date(r.ts);
-            return d.toISOString().slice(0,10)===tanggal;
-          });
-        }
-      }
+      const snap = await getDocs(query(collection(db,'absensi_satgas'), ...constraints));
+      const rows = [];
+      snap.forEach(d=>rows.push({id:d.id,...d.data()}));
       return rows;
     }catch(e){ return []; }
   }
 
   window.refreshAbsensiTable = async function(){
     const tbody = document.getElementById('absensiTbody');
+    const summaryEl = document.getElementById('absensiSummary');
     if(!tbody) return;
     tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#777;padding:18px"><div class="skeleton" style="height:14px;width:80%;margin:auto"></div></td></tr>';
-    const rows = await getAbsensiData();
-    if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#777;padding:26px">Belum ada data absensi.</td></tr>';
-      document.getElementById('absensiSummary').innerHTML='';
+
+    const filterTanggal = (document.getElementById('filterTanggal')?.value||'').trim();
+    const targetDate = filterTanggal || todayStr;
+    const wibNow = getWIBNow();
+    const isToday = targetDate === todayStr;
+    const targetDayIdx = new Date(parseInt(targetDate.split('-')[0]),parseInt(targetDate.split('-')[1])-1,parseInt(targetDate.split('-')[2])).getDay();
+    const isWeekday = targetDayIdx>=1 && targetDayIdx<=5;
+
+    const timNum = getTimForDate(targetDate);
+    const scannedRows = await getAbsensiData();
+    const scannedUidMap = {};
+    scannedRows.forEach(r=>{ scannedUidMap[(r.uid||r.nama).toLowerCase().trim()] = r; });
+
+    if(!isWeekday || !timNum){
+      const msg = !isWeekday ? 'Tidak ada satgas di hari ini (libur/akhir pekan).' : 'Jadwal tim tidak ditemukan.';
+      if(scannedRows.length>0){
+        renderRows(scannedRows, tbody, summaryEl, 'hadir');
+      } else {
+        tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:#777;padding:26px">${msg}</td></tr>`;
+        if(summaryEl) summaryEl.innerHTML='';
+      }
       return;
     }
+
+    const timFilter = activeTim ? [activeTim] : [1,2,3,4,5];
+    let members = [];
+    if(filterTanggal){
+      const tn = getTimForDate(filterTanggal);
+      if(tn) members = getMembersForTim(tn);
+    } else {
+      members = getMembersForTim(timNum);
+    }
+
+    if(activeTim){
+      const forTim = getTimForDate(targetDate);
+      if(forTim !== activeTim){
+        if(scannedRows.length>0){
+          renderRows(scannedRows, tbody, summaryEl, 'hadir');
+        } else {
+          tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:#777;padding:26px">Tim ${activeTim} tidak bertugas pada tanggal ini. Tim bertugas: Tim ${forTim}.</td></tr>`;
+          if(summaryEl) summaryEl.innerHTML='';
+        }
+        return;
+      }
+    }
+
+    const cutoffPassed = isToday && (wibNow.getUTCHours()>CUTOFF_HOUR||(wibNow.getUTCHours()===CUTOFF_HOUR&&wibNow.getUTCMinutes()>=CUTOFF_MIN));
+    const isPast = !isToday;
+    const hadir_idx = [], belum_idx = [], alfa_idx = [];
+
+    const rows = members.map((m, i)=>{
+      const key = m.nama.toLowerCase().trim();
+      const scanRec = scannedRows.find(r=>{
+        const rn=(r.nama||'').toLowerCase().trim();
+        return rn===key||rn.includes(key.split(' ')[0]);
+      });
+      let status, statusClass, waktuScan;
+      if(scanRec){
+        status='HADIR'; statusClass='status-hadir'; waktuScan=scanRec.waktuWIB||'—';
+        hadir_idx.push(i);
+      } else if(isPast || cutoffPassed){
+        status='TIDAK HADIR'; statusClass='status-alfa'; waktuScan='—';
+        alfa_idx.push(i);
+      } else {
+        status='BELUM ABSEN'; statusClass='status-terlambat'; waktuScan='—';
+        belum_idx.push(i);
+      }
+      const tglD = new Date(parseInt(targetDate.split('-')[0]),parseInt(targetDate.split('-')[1])-1,parseInt(targetDate.split('-')[2]));
+      const tglDisplay = DAYS_ID[tglD.getDay()]+', '+tglD.getDate()+' '+MONTHS_ID[tglD.getMonth()]+' '+tglD.getFullYear();
+      return `<tr>
+        <td style="color:#777;font-size:12px">${i+1}</td>
+        <td><b>${escHtml(m.nama)}</b></td>
+        <td><span class="badge badge-outline" style="font-size:9px;text-transform:uppercase">${escHtml(m.org)}</span></td>
+        <td><span class="badge badge-red" style="font-size:10px">Tim ${timNum}</span></td>
+        <td style="font-size:12px">${tglDisplay}</td>
+        <td><span class="status-badge ${statusClass}">${status}</span></td>
+        <td style="font-size:12px;color:#aaa">${waktuScan}</td>
+      </tr>`;
+    });
+
+    tbody.innerHTML = rows.join('') || '<tr><td colspan="7" style="text-align:center;color:#777;padding:26px">Tidak ada anggota terjadwal.</td></tr>';
+
+    if(summaryEl){
+      const h=hadir_idx.length, b=belum_idx.length, a=alfa_idx.length, tot=members.length;
+      summaryEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+        <div style="background:#1E1E1E;border:1px solid rgba(34,197,94,0.25);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ade80">${h}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">HADIR</div></div>
+        <div style="background:#1E1E1E;border:1px solid rgba(234,179,8,0.25);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#facc15">${b}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">BELUM ABSEN</div></div>
+        <div style="background:#1E1E1E;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#f87171">${a}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">TIDAK HADIR</div></div>
+        <div style="background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#E8D5B0">${tot}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">TOTAL TIM</div></div>
+      </div>`;
+    }
+  };
+
+  function renderRows(rows, tbody, summaryEl, defaultStatus){
     tbody.innerHTML='';
     rows.forEach((a,i)=>{
       const tgl = a.ts ? (a.ts.toDate ? a.ts.toDate() : new Date(a.ts)) : null;
-      const tanggalDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
-      const hariDisplay = a.hari || (tgl ? DAYS_ID[tgl.getDay()] : '—');
-      const timDisplay = a.tim ? 'Tim '+a.tim : '—';
+      const tglStr = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
       tbody.innerHTML+=`<tr>
         <td style="color:#777;font-size:12px">${i+1}</td>
         <td><b>${escHtml(a.nama||'—')}</b></td>
-        <td><span class="badge badge-red" style="font-size:10px">${escHtml(timDisplay)}</span></td>
-        <td style="font-size:12px;color:#aaa">${escHtml(hariDisplay)}</td>
-        <td style="font-size:12px">${escHtml(tanggalDisplay)}</td>
+        <td><span class="badge badge-outline" style="font-size:9px">${escHtml(a.org||'—')}</span></td>
+        <td><span class="badge badge-red" style="font-size:10px">Tim ${a.tim||'?'}</span></td>
+        <td style="font-size:12px">${escHtml(tglStr)}</td>
         <td><span class="status-badge status-hadir">HADIR</span></td>
-        <td style="font-size:12px;color:#aaa">${escHtml(a.dicatatOleh||'Sistem')}</td>
+        <td style="font-size:12px;color:#aaa">${escHtml(a.waktuWIB||'—')}</td>
       </tr>`;
     });
-    const timCount = {};
-    rows.forEach(r=>{ const t='Tim '+(r.tim||'?'); timCount[t]=(timCount[t]||0)+1; });
-    let sumHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">';
-    Object.entries(timCount).sort().forEach(([t,c])=>{
-      sumHtml+=`<div style="background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:#C0141C">${c}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:\'Barlow Condensed\',sans-serif">${t}</div></div>`;
-    });
-    sumHtml += `<div style="background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:#E8D5B0">${rows.length}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:\'Barlow Condensed\',sans-serif">TOTAL HADIR</div></div>`;
-    sumHtml += '</div>';
-    document.getElementById('absensiSummary').innerHTML = sumHtml;
-  };
+    if(summaryEl) summaryEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"><div style="background:#1E1E1E;border:1px solid rgba(34,197,94,0.25);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ade80">${rows.length}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">TOTAL HADIR</div></div></div>`;
+  }
 
   window.eksporAbsensiCSV = async function(){
     const rows = await getAbsensiData();
     if(!rows.length){ showNotif('Belum ada data untuk diekspor.','info'); return; }
     let csv='\uFEFF';
     const timLabel = activeTim ? 'Tim '+activeTim : 'Semua Tim';
-    csv+='Rekap Absensi Satgas MPOS — '+timLabel+'\n';
-    csv+='No,Nama,Tim,Hari,Tanggal,Status,Dicatat Oleh\n';
+    csv+='Rekap Absensi Satgas MPOS \u2014 '+timLabel+'\n';
+    csv+='No,Nama,Org,Tim,Tanggal,Status,Waktu Scan\n';
     rows.forEach((a,i)=>{
       const tgl = a.ts ? (a.ts.toDate ? a.ts.toDate() : new Date(a.ts)) : null;
-      const tanggalDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
-      const hariDisplay = a.hari || (tgl ? DAYS_ID[tgl.getDay()] : '—');
-      csv+=`${i+1},"${escHtml(a.nama||'—')}","Tim ${a.tim||'?'}","${hariDisplay}","${tanggalDisplay}","HADIR","${a.dicatatOleh||'Sistem'}"\n`;
+      const tglDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
+      csv+=`${i+1},"${a.nama||'—'}","${a.org||'—'}","Tim ${a.tim||'?'}","${tglDisplay}","HADIR","${a.waktuWIB||'—'}"\n`;
     });
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;
-    a.download='absensi_satgas_'+(activeTim?'tim'+activeTim:'semua')+'_'+new Date().toISOString().slice(0,10)+'.csv';
-    a.click();
+    a.href=url; a.download='absensi_satgas_'+(activeTim?'tim'+activeTim:'semua')+'_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
     showNotif('CSV berhasil diunduh.','success');
   };
@@ -2117,23 +2256,498 @@ async function loadAbsensi(){
     let tableRows='';
     rows.forEach((a,i)=>{
       const tgl = a.ts ? (a.ts.toDate ? a.ts.toDate() : new Date(a.ts)) : null;
-      const tanggalDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
-      const hariDisplay = a.hari || (tgl ? DAYS_ID[tgl.getDay()] : '—');
-      tableRows+=`<tr${i%2===1?' style="background:#f9f9f9"':''}><td style="text-align:center">${i+1}</td><td><b>${a.nama||'—'}</b></td><td style="text-align:center">Tim ${a.tim||'?'}</td><td>${hariDisplay}</td><td>${tanggalDisplay}</td><td style="color:green;text-align:center;font-weight:700">HADIR</td><td style="font-size:11px">${a.dicatatOleh||'Sistem'}</td></tr>`;
+      const tglDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
+      tableRows+=`<tr${i%2===1?' style="background:#f9f9f9"':''}><td style="text-align:center">${i+1}</td><td><b>${a.nama||'—'}</b></td><td>${a.org||'—'}</td><td style="text-align:center">Tim ${a.tim||'?'}</td><td>${tglDisplay}</td><td style="color:green;text-align:center;font-weight:700">HADIR</td><td style="font-size:11px">${a.waktuWIB||'—'}</td></tr>`;
     });
     const win=window.open('','_blank','width=950,height=700');
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rekap Absensi Satgas — ${timLabel}</title>
-    <style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:17px;margin:0 0 3px}p{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#c0141c;color:#fff;padding:7px 9px;text-align:left;letter-spacing:0.5px}td{padding:6px 9px;border-bottom:1px solid #e5e5e5;vertical-align:top}@media print{body{margin:14px}}</style></head><body>
-    <h1>REKAP ABSENSI SATGAS — ${timLabel.toUpperCase()}</h1>
-    <p>SMAN 14 Depok — MPK &amp; OSIS &mdash; Dicetak: ${new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</p>
-    <table><thead><tr><th style="width:28px">#</th><th>Nama</th><th>Tim</th><th>Hari</th><th>Tanggal</th><th>Status</th><th>Dicatat Oleh</th></tr></thead><tbody>${tableRows}</tbody></table>
-    <script>window.onload=function(){window.print();}<\/script></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rekap Absensi Satgas</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:17px;margin:0 0 3px}p{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#c0141c;color:#fff;padding:7px 9px;text-align:left;letter-spacing:0.5px}td{padding:6px 9px;border-bottom:1px solid #e5e5e5;vertical-align:top}@media print{body{margin:14px}}</style></head><body><h1>REKAP ABSENSI SATGAS \u2014 ${timLabel.toUpperCase()}</h1><p>SMAN 14 Depok \u2014 MPK &amp; OSIS &mdash; Dicetak: ${new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</p><table><thead><tr><th>#</th><th>Nama</th><th>Org</th><th>Tim</th><th>Tanggal</th><th>Status</th><th>Waktu Scan</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>`);
     win.document.close();
     showNotif('Membuka jendela cetak PDF...','info');
   };
 
   await window.refreshAbsensiTable();
 }
+
+
+async function loadFormMgmt(){
+  const el = document.getElementById('formContent');
+  el.innerHTML = `
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchFormTab('list',this)">DAFTAR FORM</button>
+    <button class="tab-btn" onclick="switchFormTab('buat',this)">BUAT FORM BARU</button>
+    <button class="tab-btn" onclick="switchFormTab('jawaban',this)">LIHAT JAWABAN</button>
+  </div>
+  <div id="formTabList"></div>
+  <div id="formTabBuat" style="display:none"></div>
+  <div id="formTabJawaban" style="display:none"></div>`;
+
+  window.switchFormTab = function(tab, btn){
+    document.querySelectorAll('#formContent .tab-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    ['List','Buat','Jawaban'].forEach(t=>{
+      const e=document.getElementById('formTab'+t);
+      if(e) e.style.display=(t.toLowerCase()===tab)?'block':'none';
+    });
+    if(tab==='list') renderFormList();
+    if(tab==='buat') renderFormBuilder(null,null);
+    if(tab==='jawaban') renderFormJawabanPicker();
+  };
+
+  window.switchFormTab('list', document.querySelector('#formContent .tab-btn'));
+}
+
+async function renderFormList(){
+  const el = document.getElementById('formTabList');
+  el.innerHTML = '<div class="skeleton" style="height:54px;margin-bottom:8px;border-radius:8px"></div>'.repeat(3);
+  try{
+    const snap = await getDocs(query(collection(db,'forms'),orderBy('ts','desc')));
+    if(!snap.size){
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">&mdash;</div><div class="empty-text">BELUM ADA FORM</div></div>';
+      return;
+    }
+    let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+    snap.forEach(d=>{
+      const a = d.data();
+      const pageCount = (a.pages||[]).length;
+      const qCount = (a.pages||[]).reduce((s,p)=>s+(p.questions||[]).length,0);
+      html += `<div class="table-wrap" style="border-radius:10px">
+        <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.5px">${escHtml(a.judul||'Tanpa Judul')}</div>
+            <div style="font-size:11px;color:#777;margin-top:2px">${pageCount} halaman &middot; ${qCount} pertanyaan &middot; ${fmtDate(a.ts)}</div>
+            ${a.desc?`<div style="font-size:12px;color:#aaa;margin-top:4px">${escHtml(a.desc)}</div>`:''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-sm btn-sm-outline" onclick="editForm('${d.id}')">EDIT</button>
+            <button class="btn-sm btn-sm-outline" onclick="lihatJawabanForm('${d.id}','${escHtml(a.judul||'Form').replace(/'/g,'&#39;')}')">JAWABAN</button>
+            <button class="btn-sm btn-sm-outline" onclick="hapusForm('${d.id}')">HAPUS</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }catch(e){ el.innerHTML='<div class="empty-state"><div class="empty-text">Gagal memuat form.</div></div>'; }
+}
+
+function renderFormBuilder(existingId, existingData){
+  const el = document.getElementById('formTabBuat');
+  let pages = existingData ? JSON.parse(JSON.stringify(existingData.pages||[{title:'Halaman 1',questions:[]}])) : [{title:'Halaman 1',questions:[]}];
+  let activePage = 0;
+  let editingFormId = existingId || null;
+
+  function qTypeLabel(t){ return {text:'Jawaban Singkat',textarea:'Jawaban Panjang',radio:'Pilihan Ganda',checkbox:'Kotak Centang',dropdown:'Dropdown',date:'Tanggal'}[t]||t; }
+
+  function renderBuilderUI(){
+    el.innerHTML = `
+    <div class="table-wrap" style="margin-bottom:14px">
+      <div style="padding:18px 20px">
+        <div class="form-group"><label class="form-label">JUDUL FORM</label><input type="text" class="form-input" id="fbJudul" value="${escHtml(existingData&&existingData.judul?existingData.judul:'')}" placeholder="Judul formulir"></div>
+        <div class="form-group"><label class="form-label">DESKRIPSI (opsional)</label><textarea class="textarea-input" id="fbDesc" placeholder="Deskripsi formulir...">${escHtml(existingData&&existingData.desc?existingData.desc:'')}</textarea></div>
+        <div class="form-group"><label class="form-label">URL FOTO SAMPUL (opsional) &mdash; gunakan catbox.moe / top4top dll</label><input type="text" class="form-input" id="fbCover" value="${escHtml(existingData&&existingData.cover?existingData.cover:'')}" placeholder="https://files.catbox.moe/..."></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">HALAMAN:</div>
+      <div id="fbPageTabs" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+      <button class="btn-sm btn-sm-outline" onclick="fbAddPage()">+ HALAMAN</button>
+    </div>
+    <div id="fbPageContent"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-primary" style="width:auto;padding:10px 24px" onclick="fbSaveForm()">SIMPAN FORM</button>
+      <button class="btn-secondary" onclick="switchFormTab('list', document.querySelector('#formContent .tab-btn'))">BATAL</button>
+    </div>`;
+
+    renderPageTabs();
+    renderPageContent();
+  }
+
+  function renderPageTabs(){
+    const tabsEl = document.getElementById('fbPageTabs');
+    if(!tabsEl) return;
+    tabsEl.innerHTML = pages.map((p,i)=>`<button class="btn-sm ${i===activePage?'btn-sm-red':'btn-sm-outline'}" onclick="fbSwitchPage(${i})">${escHtml(p.title||'Halaman '+(i+1))}</button>`).join('');
+  }
+
+  function renderPageContent(){
+    const el2 = document.getElementById('fbPageContent');
+    if(!el2) return;
+    const page = pages[activePage];
+    let qs = '';
+    (page.questions||[]).forEach((q,qi)=>{
+      let optHtml = '';
+      if(['radio','checkbox','dropdown'].includes(q.type)){
+        optHtml = `<div id="fb-opts-${qi}" style="margin-top:8px">
+          ${(q.options||[]).map((o,oi)=>`<div style="display:flex;gap:6px;margin-bottom:5px;align-items:center">
+            <input type="text" class="form-input" style="flex:1;padding:7px 10px;font-size:13px" value="${escHtml(o)}" oninput="fbUpdateOption(${qi},${oi},this.value)" placeholder="Opsi ${oi+1}">
+            <button class="btn-sm btn-sm-outline" style="padding:4px 8px;flex-shrink:0" onclick="fbRemoveOption(${qi},${oi})">&#x2715;</button>
+          </div>`).join('')}
+          <button class="btn-sm btn-sm-outline" style="margin-top:4px;font-size:11px" onclick="fbAddOption(${qi})">+ Tambah Opsi</button>
+        </div>`;
+      }
+      qs += `<div class="table-wrap" style="margin-bottom:10px;border-radius:8px" id="fbq-${qi}">
+        <div style="padding:14px 16px">
+          <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px">
+            <input type="text" class="form-input" style="flex:1;min-width:200px" value="${escHtml(q.label||'')}" placeholder="Pertanyaan..." oninput="fbUpdateQLabel(${qi},this.value)">
+            <select class="form-select" style="width:180px;padding:8px 10px;font-size:13px" onchange="fbUpdateQType(${qi},this.value)">
+              ${['text','textarea','radio','checkbox','dropdown','date'].map(t=>`<option value="${t}" ${q.type===t?'selected':''}>${qTypeLabel(t)}</option>`).join('')}
+            </select>
+            <select class="form-select" style="width:130px;padding:8px 10px;font-size:13px" onchange="fbUpdateQRequired(${qi},this.value)">
+              <option value="0" ${!q.required?'selected':''}>Opsional</option>
+              <option value="1" ${q.required?'selected':''}>Wajib Diisi</option>
+            </select>
+            <button class="btn-sm btn-sm-outline" onclick="fbRemoveQuestion(${qi})">HAPUS</button>
+          </div>
+          ${optHtml}
+        </div>
+      </div>`;
+    });
+    el2.innerHTML = `<div class="table-wrap" style="margin-bottom:10px;border-radius:8px">
+      <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px">JUDUL HALAMAN:</div>
+        <input type="text" class="form-input" style="flex:1;min-width:180px" value="${escHtml(page.title||'')}" placeholder="Judul halaman..." oninput="fbUpdatePageTitle(this.value)">
+        ${pages.length>1?`<button class="btn-sm btn-sm-outline" onclick="fbDeletePage(${activePage})">HAPUS HALAMAN</button>`:''}
+      </div>
+    </div>
+    ${qs}
+    <button class="btn-sm btn-sm-outline" style="margin-top:4px" onclick="fbAddQuestion()">+ TAMBAH PERTANYAAN</button>`;
+  }
+
+  window.fbSwitchPage = function(i){ activePage=i; renderPageTabs(); renderPageContent(); };
+  window.fbAddPage = function(){
+    pages.push({title:'Halaman '+(pages.length+1),questions:[]});
+    activePage=pages.length-1;
+    renderPageTabs(); renderPageContent();
+  };
+  window.fbDeletePage = function(i){
+    if(pages.length<=1){ showNotif('Form harus punya minimal satu halaman.','error'); return; }
+    pages.splice(i,1);
+    if(activePage>=pages.length) activePage=pages.length-1;
+    renderPageTabs(); renderPageContent();
+  };
+  window.fbUpdatePageTitle = function(v){ pages[activePage].title=v; renderPageTabs(); };
+  window.fbAddQuestion = function(){
+    if(!pages[activePage].questions) pages[activePage].questions=[];
+    pages[activePage].questions.push({label:'',type:'text',required:false,options:[]});
+    renderPageContent();
+  };
+  window.fbRemoveQuestion = function(qi){ pages[activePage].questions.splice(qi,1); renderPageContent(); };
+  window.fbUpdateQLabel = function(qi,v){ pages[activePage].questions[qi].label=v; };
+  window.fbUpdateQType = function(qi,v){
+    const q=pages[activePage].questions[qi];
+    q.type=v;
+    if(['radio','checkbox','dropdown'].includes(v) && (!q.options||!q.options.length)) q.options=['Opsi 1'];
+    renderPageContent();
+  };
+  window.fbUpdateQRequired = function(qi,v){ pages[activePage].questions[qi].required=v==='1'; };
+  window.fbAddOption = function(qi){ pages[activePage].questions[qi].options.push('Opsi '+(pages[activePage].questions[qi].options.length+1)); renderPageContent(); };
+  window.fbRemoveOption = function(qi,oi){ pages[activePage].questions[qi].options.splice(oi,1); renderPageContent(); };
+  window.fbUpdateOption = function(qi,oi,v){ pages[activePage].questions[qi].options[oi]=v; };
+
+  window.fbSaveForm = async function(){
+    const judul = (document.getElementById('fbJudul')&&document.getElementById('fbJudul').value||'').trim();
+    const desc = (document.getElementById('fbDesc')&&document.getElementById('fbDesc').value||'').trim();
+    const cover = (document.getElementById('fbCover')&&document.getElementById('fbCover').value||'').trim();
+    if(!judul){ showNotif('Judul form wajib diisi.','error'); return; }
+    const payload = {judul, desc, cover, pages, dibuatOleh:currentUser.name, dibuatUid:currentUser.uid, ts:serverTimestamp()};
+    if(editingFormId){ await updateDoc(doc(db,'forms',editingFormId),payload); }
+    else { await addDoc(collection(db,'forms'),payload); }
+    showNotif('Form berhasil disimpan.','success');
+    writeActivityLog('SIMPAN FORM','Menyimpan form: '+judul);
+    window.switchFormTab('list', document.querySelector('#formContent .tab-btn'));
+  };
+
+  renderBuilderUI();
+}
+
+window.editForm = async function(formId){
+  const snap = await getDoc(doc(db,'forms',formId));
+  if(!snap.exists()){ showNotif('Form tidak ditemukan.','error'); return; }
+  const data = snap.data();
+  const tabs = document.querySelectorAll('#formContent .tab-btn');
+  window.switchFormTab('buat', tabs[1]);
+  renderFormBuilder(formId, data);
+};
+
+window.hapusForm = async function(id){
+  try{ await showConfirm({title:'HAPUS FORM',msg:'Form dan semua jawabannya akan dihapus permanen.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
+  try{
+    const ansSnap = await getDocs(query(collection(db,'form_responses'), where('formId','==',id)));
+    const batch = writeBatch(db);
+    batch.delete(doc(db,'forms',id));
+    ansSnap.forEach(d=>batch.delete(doc(db,'form_responses',d.id)));
+    await batch.commit();
+  }catch(e){ await deleteDoc(doc(db,'forms',id)); }
+  showNotif('Form dihapus.','info');
+  writeActivityLog('HAPUS FORM','Menghapus form ID: '+id);
+  renderFormList();
+};
+
+async function renderFormJawabanPicker(){
+  const el = document.getElementById('formTabJawaban');
+  el.innerHTML = '<div class="skeleton" style="height:40px;border-radius:8px;margin-bottom:10px"></div><div class="skeleton" style="height:40px;border-radius:8px"></div>';
+  try{
+    const snap = await getDocs(query(collection(db,'forms'),orderBy('ts','desc')));
+    if(!snap.size){
+      el.innerHTML = '<div class="empty-state"><div class="empty-text">BELUM ADA FORM</div></div>';
+      return;
+    }
+    let opts = '<option value="">-- Pilih Form --</option>';
+    snap.forEach(d=>{ opts += `<option value="${d.id}">${escHtml(d.data().judul||'Tanpa Judul')}</option>`; });
+    el.innerHTML = `<div class="table-wrap" style="margin-bottom:14px"><div style="padding:16px">
+      <div class="form-group"><label class="form-label">PILIH FORM YANG INGIN DILIHAT JAWABANNYA</label><select class="form-select" id="jawabanFormSelect">${opts}</select></div>
+      <button class="btn-sm btn-sm-red" onclick="loadJawabanForm()">LIHAT JAWABAN</button>
+    </div></div>
+    <div id="jawabanFormContent"></div>`;
+  }catch(e){ el.innerHTML='<div class="empty-state"><div class="empty-text">Gagal memuat daftar form.</div></div>'; }
+}
+
+window.lihatJawabanForm = function(formId){
+  const tabs = document.querySelectorAll('#formContent .tab-btn');
+  window.switchFormTab('jawaban', tabs[2]);
+  setTimeout(async ()=>{
+    const sel = document.getElementById('jawabanFormSelect');
+    if(sel){ sel.value=formId; await loadJawabanForm(); }
+  },100);
+};
+
+window.loadJawabanForm = async function(){
+  const sel = document.getElementById('jawabanFormSelect');
+  const formId = sel ? sel.value : '';
+  if(!formId){ showNotif('Pilih form terlebih dahulu.','error'); return; }
+  const el = document.getElementById('jawabanFormContent');
+  el.innerHTML = '<div class="skeleton" style="height:80px;border-radius:8px"></div>';
+  try{
+    const formSnap = await getDoc(doc(db,'forms',formId));
+    if(!formSnap.exists()){ el.innerHTML='<div class="empty-state"><div class="empty-text">Form tidak ditemukan.</div></div>'; return; }
+    const formData = formSnap.data();
+    const allQs = [];
+    (formData.pages||[]).forEach((p,pi)=>{
+      (p.questions||[]).forEach((q,qi)=>{ allQs.push({pageIdx:pi,pageTitle:p.title||('Halaman '+(pi+1)),qi,label:q.label,type:q.type}); });
+    });
+    const respSnap = await getDocs(query(collection(db,'form_responses'),where('formId','==',formId),orderBy('ts','desc')));
+    if(!respSnap.size){
+      el.innerHTML = `<div class="table-wrap"><div style="padding:24px;text-align:center;color:#777;font-size:13px">Belum ada jawaban untuk form <b>${escHtml(formData.judul||'ini')}</b>.</div></div>`;
+      return;
+    }
+    const responses = [];
+    respSnap.forEach(d=>responses.push({id:d.id,...d.data()}));
+    const thCols = `<th style="width:28px">#</th><th>Pengirim</th><th>Waktu</th>${allQs.map(q=>`<th>${escHtml(q.label||'Pertanyaan')}</th>`).join('')}`;
+    const tdRows = responses.map((r,i)=>{
+      const cells = [`<td style="color:#777;font-size:12px">${i+1}</td>`,`<td style="font-size:13px">${escHtml(r.pengirim||'Anonim')}</td>`,`<td style="font-size:11px;color:#777;white-space:nowrap">${fmtDate(r.ts)}</td>`];
+      allQs.forEach(q=>{
+        const ans = r.answers ? r.answers['p'+q.pageIdx+'q'+q.qi] : '';
+        const display = Array.isArray(ans) ? ans.join(', ') : (ans||'--');
+        cells.push(`<td style="font-size:12px;max-width:200px;word-break:break-word">${escHtml(display)}</td>`);
+      });
+      return `<tr>${cells.join('')}</tr>`;
+    }).join('');
+    el.innerHTML = `<div class="table-wrap">
+      <div class="table-head">
+        <div class="table-head-title">${escHtml(formData.judul||'Form')} &mdash; ${responses.length} Respons</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn-sm btn-sm-outline" onclick="eksporFormCSV('${formId}')">&#8595; CSV</button>
+          <button class="btn-sm btn-sm-outline" onclick="eksporFormPDF('${formId}')">&#8595; PDF</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr>${thCols}</tr></thead><tbody>${tdRows}</tbody></table></div>
+    </div>`;
+  }catch(e){ el.innerHTML='<div class="empty-state"><div class="empty-text">Gagal memuat jawaban.</div></div>'; }
+};
+
+window.eksporFormCSV = async function(formId){
+  const formSnap = await getDoc(doc(db,'forms',formId));
+  if(!formSnap.exists()){ showNotif('Form tidak ditemukan.','error'); return; }
+  const formData = formSnap.data();
+  const allQs = [];
+  (formData.pages||[]).forEach((p,pi)=>{
+    (p.questions||[]).forEach((q,qi)=>{ allQs.push({pageIdx:pi,qi,label:q.label}); });
+  });
+  const respSnap = await getDocs(query(collection(db,'form_responses'),where('formId','==',formId),orderBy('ts','desc')));
+  const responses = [];
+  respSnap.forEach(d=>responses.push({id:d.id,...d.data()}));
+  if(!responses.length){ showNotif('Belum ada respons.','info'); return; }
+  function escCsvCell(v){ return '"'+(v||'').toString().replace(/"/g,'""')+'"'; }
+  let csv='\uFEFF';
+  csv += ['No','Pengirim','Waktu',...allQs.map(q=>q.label||'Pertanyaan')].map(escCsvCell).join(',') + '\n';
+  responses.forEach((r,i)=>{
+    const row = [i+1, r.pengirim||'Anonim', fmtDate(r.ts)];
+    allQs.forEach(q=>{
+      const ans = r.answers ? r.answers['p'+q.pageIdx+'q'+q.qi] : '';
+      row.push(Array.isArray(ans) ? ans.join('; ') : (ans||''));
+    });
+    csv += row.map(escCsvCell).join(',') + '\n';
+  });
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='form_'+Date.now()+'.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showNotif('CSV berhasil diunduh.','success');
+};
+
+window.eksporFormPDF = async function(formId){
+  const formSnap = await getDoc(doc(db,'forms',formId));
+  if(!formSnap.exists()){ showNotif('Form tidak ditemukan.','error'); return; }
+  const formData = formSnap.data();
+  const allQs = [];
+  (formData.pages||[]).forEach((p,pi)=>{
+    (p.questions||[]).forEach((q,qi)=>{ allQs.push({pageIdx:pi,qi,label:q.label}); });
+  });
+  const respSnap = await getDocs(query(collection(db,'form_responses'),where('formId','==',formId),orderBy('ts','desc')));
+  const responses = [];
+  respSnap.forEach(d=>responses.push({id:d.id,...d.data()}));
+  if(!responses.length){ showNotif('Belum ada respons.','info'); return; }
+  const thCols = '<th style="width:28px">#</th><th>Pengirim</th><th>Waktu</th>'+allQs.map(q=>`<th>${escHtml(q.label||'?')}</th>`).join('');
+  const tdRows = responses.map((r,i)=>{
+    const tds = [`<td style="text-align:center">${i+1}</td>`,`<td>${escHtml(r.pengirim||'Anonim')}</td>`,`<td style="font-size:11px">${escHtml(fmtDate(r.ts))}</td>`];
+    allQs.forEach(q=>{
+      const ans = r.answers ? r.answers['p'+q.pageIdx+'q'+q.qi] : '';
+      tds.push(`<td>${escHtml(Array.isArray(ans)?ans.join(', '):(ans||'--'))}</td>`);
+    });
+    return `<tr${i%2===1?' style="background:#f9f9f9"':''}>${tds.join('')}</tr>`;
+  }).join('');
+  const win = window.open('','_blank','width=1100,height=700');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(formData.judul||'Rekap Form')}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:17px;margin:0 0 3px}p{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#c0141c;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top;max-width:200px;word-break:break-word}@media print{body{margin:14px}}</style></head><body><h1>${escHtml(formData.judul||'Rekap Form')}</h1><p>SMAN 14 Depok &mdash; MPK &amp; OSIS &mdash; ${responses.length} respons &mdash; Dicetak: ${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}</p><table><thead><tr>${thCols}</tr></thead><tbody>${tdRows}</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>`);
+  win.document.close();
+  showNotif('Membuka jendela cetak PDF...','info');
+};
+
+window.openPublicForm = async function(formId){
+  const formSnap = await getDoc(doc(db,'forms',formId));
+  if(!formSnap.exists()){ showNotif('Form tidak ditemukan.','error'); return; }
+  const formData = formSnap.data();
+  const pages = formData.pages||[];
+  if(!pages.length){ showNotif('Form ini tidak memiliki halaman.','info'); return; }
+
+  let currentPage = 0;
+  let answers = {};
+
+  function renderFormModal(){
+    const page = pages[currentPage];
+    const isLast = currentPage === pages.length - 1;
+    let questionsHtml = (page.questions||[]).map((q,qi)=>{
+      const key = 'p'+currentPage+'q'+qi;
+      const reqBadge = q.required ? '<span style="color:#C0141C;margin-left:4px">*</span>' : '<span style="font-size:10px;color:#777;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px">OPSIONAL</span>';
+      let inputHtml = '';
+      if(q.type==='text'){
+        inputHtml = `<input type="text" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}" placeholder="Jawaban singkat...">`;
+      } else if(q.type==='textarea'){
+        inputHtml = `<textarea class="textarea-input" id="fq-${key}" placeholder="Jawaban panjang...">${escHtml(answers[key]||'')}</textarea>`;
+      } else if(q.type==='radio'){
+        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:6px 0;cursor:pointer;font-size:13px"><input type="radio" name="fq-${key}" value="${escHtml(o)}" ${answers[key]===o?'checked':''} style="accent-color:#C0141C;width:15px;height:15px"> ${escHtml(o)}</label>`).join('');
+      } else if(q.type==='checkbox'){
+        const curAns = answers[key]||[];
+        inputHtml = (q.options||[]).map(o=>`<label style="display:flex;align-items:center;gap:7px;padding:6px 0;cursor:pointer;font-size:13px"><input type="checkbox" name="fq-${key}" value="${escHtml(o)}" ${Array.isArray(curAns)&&curAns.includes(o)?'checked':''} style="accent-color:#C0141C;width:15px;height:15px"> ${escHtml(o)}</label>`).join('');
+      } else if(q.type==='dropdown'){
+        inputHtml = `<select class="form-select" id="fq-${key}"><option value="">-- Pilih --</option>${(q.options||[]).map(o=>`<option value="${escHtml(o)}" ${answers[key]===o?'selected':''}>${escHtml(o)}</option>`).join('')}</select>`;
+      } else if(q.type==='date'){
+        inputHtml = `<input type="date" class="form-input" id="fq-${key}" value="${escHtml(answers[key]||'')}">`;
+      }
+      return `<div class="form-group" id="fqwrap-${key}" style="margin-bottom:16px">
+        <label class="form-label">${escHtml(q.label||'Pertanyaan')}${reqBadge}</label>
+        <div id="fq-err-${key}" style="display:none;color:#f87171;font-size:11px;margin-bottom:5px;padding:4px 8px;background:rgba(239,68,68,0.07);border-radius:5px;border-left:3px solid #C0141C">Bagian ini wajib diisi.</div>
+        ${inputHtml}
+      </div>`;
+    }).join('');
+
+    const progressPct = pages.length > 1 ? Math.round((currentPage/(pages.length-1))*100) : 100;
+    const prevBtn = currentPage>0 ? `<button class="btn-secondary" onclick="fmPrevPage()" style="flex-shrink:0">&#8592; SEBELUMNYA</button>` : '';
+    const nextOrSend = !isLast
+      ? `<button class="btn-primary" style="flex:1" onclick="fmNextPage()">BERIKUTNYA &#8594;</button>`
+      : `<button class="btn-primary" style="flex:1" onclick="fmSubmitForm('${formId}')">KIRIM</button>`;
+
+    openGenericModal(
+      escHtml(formData.judul||'Form'),
+      `${formData.cover ? `<img src="${escHtml(formData.cover)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:12px" onerror="this.style.display='none'">` : ''}
+      ${currentPage===0&&formData.desc ? `<div style="font-size:13px;color:#aaa;margin-bottom:14px;line-height:1.7">${escHtml(formData.desc)}</div>` : ''}
+      ${pages.length>1 ? `<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#777;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;margin-bottom:5px"><span>HALAMAN ${currentPage+1} / ${pages.length}</span><span>${escHtml(page.title||'')}</span></div>
+        <div style="background:#1E1E1E;border-radius:4px;height:4px"><div style="background:#C0141C;height:4px;border-radius:4px;width:${progressPct}%;transition:width 0.3s"></div></div>
+      </div>` : ''}
+      ${questionsHtml}
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${prevBtn}${nextOrSend}</div>`
+    );
+  }
+
+  function collectCurrentPage(){
+    const page = pages[currentPage];
+    (page.questions||[]).forEach((q,qi)=>{
+      const key = 'p'+currentPage+'q'+qi;
+      if(q.type==='checkbox'){
+        const boxes = document.querySelectorAll(`input[name="fq-${key}"]:checked`);
+        answers[key] = Array.from(boxes).map(b=>b.value);
+      } else if(q.type==='radio'){
+        const r = document.querySelector(`input[name="fq-${key}"]:checked`);
+        answers[key] = r ? r.value : '';
+      } else {
+        const inp = document.getElementById('fq-'+key);
+        if(inp) answers[key] = inp.value;
+      }
+    });
+  }
+
+  function validateCurrentPage(){
+    const page = pages[currentPage];
+    let valid = true;
+    let firstErr = null;
+    (page.questions||[]).forEach((q,qi)=>{
+      const key = 'p'+currentPage+'q'+qi;
+      const errEl = document.getElementById('fq-err-'+key);
+      const wrapEl = document.getElementById('fqwrap-'+key);
+      if(!errEl) return;
+      if(q.required){
+        const val = answers[key];
+        const empty = !val || (Array.isArray(val) && !val.length) || (typeof val==='string' && !val.trim());
+        if(empty){
+          errEl.style.display='block';
+          if(wrapEl && valid) firstErr = wrapEl;
+          valid = false;
+        } else {
+          errEl.style.display='none';
+        }
+      } else {
+        errEl.style.display='none';
+      }
+    });
+    if(firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
+    return valid;
+  }
+
+  window.fmPrevPage = function(){
+    collectCurrentPage();
+    currentPage--;
+    renderFormModal();
+  };
+  window.fmNextPage = function(){
+    collectCurrentPage();
+    if(!validateCurrentPage()) return;
+    currentPage++;
+    renderFormModal();
+  };
+  window.fmSubmitForm = async function(fId){
+    collectCurrentPage();
+    if(!validateCurrentPage()) return;
+    try{
+      await showConfirm({title:'KIRIM JAWABAN',msg:'Pastikan semua jawaban sudah benar. Jawaban tidak dapat diubah setelah dikirim.',okLabel:'YA, KIRIM',type:'info'});
+    }catch(e){ return; }
+    try{
+      await addDoc(collection(db,'form_responses'),{
+        formId:fId,
+        formJudul:formData.judul||'',
+        pengirim:currentUser?currentUser.name:'Anonim',
+        pengirimUid:currentUser?currentUser.uid:'',
+        answers,
+        ts:serverTimestamp()
+      });
+      closeGenericModal();
+      showNotif('Jawaban berhasil dikirim! Terima kasih.','success');
+      writeActivityLog('KIRIM FORM','Mengirim jawaban form: '+(formData.judul||''));
+    }catch(e){
+      showNotif('Gagal mengirim jawaban: '+e.message,'error');
+    }
+  };
+
+  renderFormModal();
+};
 
 async function loadInfoMgmt(){
   const el = document.getElementById('infoContent');
@@ -2156,12 +2770,13 @@ async function loadInfoMgmt(){
     if(existingId){ await updateDoc(doc(db,'infos',existingId),payload); }
     else{ await addDoc(collection(db,'infos'),payload); }
     showNotif('Info berhasil disimpan.','success');
+    writeActivityLog('SIMPAN INFO','Menyimpan informasi: '+(judul||''));
     closeGenericModal(); loadInfoTable();
   };
 
   window.hapusInfo = async function(id){
     try{ await showConfirm({title:'HAPUS INFO',msg:'Postingan informasi ini akan dihapus permanen.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
-    await deleteDoc(doc(db,'infos',id)); showNotif('Info dihapus.','info'); loadInfoTable();
+    await deleteDoc(doc(db,'infos',id)); writeActivityLog('HAPUS INFO','Menghapus informasi ID: '+id); showNotif('Info dihapus.','info'); loadInfoTable();
   };
   loadInfoTable();
 }
@@ -2205,12 +2820,13 @@ async function loadEventMgmt(){
     if(existingId){ await updateDoc(doc(db,'events',existingId),payload); }
     else{ await addDoc(collection(db,'events'),payload); }
     showNotif('Event berhasil disimpan.','success');
+    writeActivityLog('SIMPAN EVENT','Menyimpan event: '+(judul||''));
     closeGenericModal(); loadEventTable();
   };
 
   window.hapusEvent = async function(id){
     try{ await showConfirm({title:'HAPUS EVENT',msg:'Event ini akan dihapus permanen.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
-    await deleteDoc(doc(db,'events',id)); showNotif('Event dihapus.','info'); loadEventTable();
+    await deleteDoc(doc(db,'events',id)); writeActivityLog('HAPUS EVENT','Menghapus event ID: '+id); showNotif('Event dihapus.','info'); loadEventTable();
   };
   loadEventTable();
 }
@@ -2231,7 +2847,7 @@ async function loadAkunMgmt(){
   const org = currentUser.org;
   const isAdmin = ['ketos','waketos','ketumpk','waketumpk'].includes(currentUser.username);
   const adminTabs = isAdmin ? `<button class="tab-btn" onclick="switchAkunTab('reset',this)">RESET DATA</button><button class="tab-btn" onclick="switchAkunTab('backup',this)">BACKUP</button>` : '';
-  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
+  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchAkunTab('list',this)">DAFTAR AKUN</button><button class="tab-btn" onclick="switchAkunTab('buat',this)">BUAT AKUN</button><button class="tab-btn" onclick="switchAkunTab('massal',this)">IMPOR MASSAL</button>${adminTabs}</div><div id="akunTabList"><div style="margin-bottom:11px"><input type="text" class="search-bar" placeholder="Cari akun..." oninput="filterAkunTable(this.value)"></div><div class="table-wrap"><div class="table-head"><div class="table-head-title">AKUN ${org.toUpperCase()}</div></div><div style="overflow-x:auto"><table><thead><tr><th>Nama</th><th>Username</th><th>Jabatan</th><th>Bisa Post</th><th>Aksi</th></tr></thead><tbody id="akunTbody"></tbody></table></div></div></div><div id="akunTabBuat" style="display:none"><div class="table-wrap"><div style="padding:20px"><div class="form-group"><label class="form-label">NAMA LENGKAP</label><input type="text" class="form-input" id="akNama" placeholder="Nama lengkap"></div><div class="form-group"><label class="form-label">USERNAME</label><input type="text" class="form-input" id="akUser" placeholder="username (huruf kecil)"></div><div class="form-group"><label class="form-label">JABATAN</label><input type="text" class="form-input" id="akJabatan" placeholder="Jabatan"></div><div class="form-group"><label class="form-label">KELAS (opsional)</label><input type="text" class="form-input" id="akKelas" placeholder="X IPA 1"></div><button class="btn-primary" onclick="buatAkun()">BUAT AKUN</button></div></div></div><div id="akunTabMassal" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:11px;line-height:1.7">Format: <code style="background:#1E1E1E;padding:2px 6px;border-radius:4px">Nama Lengkap, Jabatan</code> (satu baris satu akun). Password default: <b>565656</b></div><div class="mass-upload-area"><textarea class="textarea-input" id="massalInput" placeholder="Ahmad Fauzi, Ketua Bidang I&#10;Siti Rahayu, Sekretaris I&#10;..."></textarea></div><button class="btn-primary" style="margin-top:11px" onclick="importMassal()">IMPOR</button></div></div></div><div id="akunTabReset" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#f87171;margin-bottom:16px;padding:11px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.18);border-radius:8px;line-height:1.7">Fitur ini akan menghapus data yang dipilih secara permanen. Tidak bisa dibatalkan.</div><div style="margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#777">PILIH DATA YANG AKAN DIHAPUS:</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="resetAbsensi" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Absensi (<span id="countAbsensi">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetPelanggaran" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pelanggaran (<span id="countPelanggaran">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetInfos" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Informasi/Postingan (<span id="countInfos">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetEvents" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Event (<span id="countEvents">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetRegistrations" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Pendaftaran Event (<span id="countRegistrations">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login (<span id="countLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetActivityLogs" style="accent-color:#C0141C;width:16px;height:16px"><span>Log Aktivitas (<span id="countActivityLogs">...</span> entri)</span></label><label class="checkbox-item"><input type="checkbox" id="resetMeets" style="accent-color:#C0141C;width:16px;height:16px"><span>Data Rapat Online (<span id="countMeets">...</span> entri)</span></label></div><button class="btn-primary" style="background:linear-gradient(135deg,#8B0D12,#5a0008)" onclick="doResetData()">HAPUS DATA TERPILIH</button></div></div></div><div id="akunTabBackup" style="display:none"><div class="table-wrap"><div style="padding:20px"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Backup semua data ke file JSON. Simpan file ini sebagai cadangan sebelum melakukan reset.</div><div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px"><label class="checkbox-item"><input type="checkbox" id="backupAccounts" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Akun</span></label><label class="checkbox-item"><input type="checkbox" id="backupAbsensi" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Absensi</span></label><label class="checkbox-item"><input type="checkbox" id="backupPelanggaran" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pelanggaran</span></label><label class="checkbox-item"><input type="checkbox" id="backupInfos" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Informasi</span></label><label class="checkbox-item"><input type="checkbox" id="backupEvents" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupRegistrations" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Pendaftaran Event</span></label><label class="checkbox-item"><input type="checkbox" id="backupLogs" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Log Login</span></label><label class="checkbox-item"><input type="checkbox" id="backupSatgas" checked style="accent-color:#C0141C;width:16px;height:16px"><span>Jadwal Satgas</span></label></div><button class="btn-primary" onclick="doBackupData()">UNDUH BACKUP JSON</button></div></div></div>`;
 
   window.switchAkunTab = function(tab, btn){
     document.querySelectorAll('#akunContent .tab-btn').forEach(b=>b.classList.remove('active'));
@@ -2242,8 +2858,8 @@ async function loadAkunMgmt(){
   };
 
   window.loadResetCounts = async function(){
-    const cols = ['absensi','pelanggaran','infos','events','event_registrations','logs','meets'];
-    const ids = ['Absensi','Pelanggaran','Infos','Events','Registrations','Logs','Meets'];
+    const cols = ['absensi','absensi_satgas','pelanggaran','infos','events','event_registrations','logs','activity_logs','meets'];
+    const ids = ['Absensi','AbsensiSatgas','Pelanggaran','Infos','Events','Registrations','Logs','ActivityLogs','Meets'];
     for(let i=0;i<cols.length;i++){
       try{
         const s = await getDocs(collection(db,cols[i]));
@@ -2261,6 +2877,7 @@ async function loadAkunMgmt(){
       {id:'resetEvents',col:'events'},
       {id:'resetRegistrations',col:'event_registrations'},
       {id:'resetLogs',col:'logs'},
+      {id:'resetActivityLogs',col:'activity_logs'},
       {id:'resetMeets',col:'meets'}
     ];
     const selected = map.filter(m=>document.getElementById(m.id)?.checked);
@@ -2291,7 +2908,7 @@ async function loadAkunMgmt(){
         }
       }
     }
-    if(total>0) showNotif(total+' entri berhasil dihapus.','success');
+    if(total>0){ showNotif(total+' entri berhasil dihapus.','success'); writeActivityLog('RESET DATA','Menghapus '+total+' entri dari: '+selected.map(m=>m.col).join(', ')); }
     if(blocked.length>0) showNotif('Koleksi berikut tidak dapat dihapus (dibatasi rules): '+blocked.join(', '),'error');
     if(total===0&&blocked.length===0) showNotif('Tidak ada data yang perlu dihapus.','info');
     window.loadResetCounts();
@@ -2343,7 +2960,7 @@ async function loadAkunMgmt(){
     const snap=await getDoc(doc(db,'accounts',id));
     if(snap.exists()){ showNotif('Username sudah ada.','error'); return; }
     await setDoc(doc(db,'accounts',id),{name:nama,username,jabatan,kelas,org,role:'anggota',password:'565656',canPost:false,canManage:false});
-    showNotif('Akun berhasil dibuat.','success');
+    showNotif('Akun berhasil dibuat.','success'); writeActivityLog('BUAT AKUN','Membuat akun baru: '+nama+' ('+username+')');
     ['akNama','akUser','akJabatan','akKelas'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     window.switchAkunTab('list', document.querySelector('#akunContent .tab-btn'));
   };
@@ -2369,12 +2986,12 @@ async function loadAkunMgmt(){
 
   window.resetPasswordAkun = async function(id){
     try{ await showConfirm({title:'RESET PASSWORD',msg:'Password akun ini akan direset ke default (565656).',okLabel:'YA, RESET',type:'warn'}); }catch(e){ return; }
-    await updateDoc(doc(db,'accounts',id),{password:'565656'}); showNotif('Password direset.','success');
+    await updateDoc(doc(db,'accounts',id),{password:'565656'}); writeActivityLog('RESET PASSWORD','Reset password akun ID: '+id); showNotif('Password direset.','success');
   };
-  window.toggleCanPost = async function(id,cur){ await updateDoc(doc(db,'accounts',id),{canPost:!cur}); showNotif('Akses posting diperbarui.','success'); loadAkunTable(); };
+  window.toggleCanPost = async function(id,cur){ await updateDoc(doc(db,'accounts',id),{canPost:!cur}); writeActivityLog('UBAH HAK POST','Akses posting akun '+id+' diubah menjadi '+(!cur)); showNotif('Akses posting diperbarui.','success'); loadAkunTable(); };
   window.hapusAkun = async function(id){
     try{ await showConfirm({title:'HAPUS AKUN',msg:'Akun ini akan dihapus permanen dan tidak bisa dipulihkan.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
-    await deleteDoc(doc(db,'accounts',id)); showNotif('Akun dihapus.','info'); loadAkunTable();
+    await deleteDoc(doc(db,'accounts',id)); writeActivityLog('HAPUS AKUN','Menghapus akun ID: '+id); showNotif('Akun dihapus.','info'); loadAkunTable();
   };
   window.filterAkunTable = function(val){ document.querySelectorAll('#akunTbody tr').forEach(r=>{ r.style.display=r.textContent.toLowerCase().includes(val.toLowerCase())?'':'none'; }); };
 
@@ -2417,19 +3034,23 @@ async function loadAkunTable(){
 
 async function loadStrukturMgmt(){
   const el = document.getElementById('strukturContent');
-  el.innerHTML = `<div class="table-wrap" style="max-width:560px"><div class="table-head"><div class="table-head-title">KELOLA KONTAK ORGANISASI</div></div><div style="padding:20px"><div style="font-size:13px;color:#777;margin-bottom:16px;line-height:1.7">Ubah alamat email resmi MPOS yang ditampilkan di halaman publik. Hanya ketua &amp; wakil ketua yang dapat mengubah.</div><div class="form-group"><label class="form-label">EMAIL RESMI MPOS</label><input type="email" class="form-input" id="kontakEmail" placeholder="email@domain.com"></div><button class="btn-primary" style="width:auto;padding:9px 22px" onclick="saveKontak()">SIMPAN</button></div></div>`;
+  el.innerHTML = `<div class="table-wrap" style="max-width:560px"><div class="table-head"><div class="table-head-title">KELOLA KONTAK ORGANISASI</div></div><div style="padding:20px"><div style="font-size:13px;color:#777;margin-bottom:18px;line-height:1.7">Ubah email dan username Instagram resmi MPOS yang tampil di halaman publik. Hanya ketua &amp; wakil yang dapat mengubah.</div><div class="form-group"><label class="form-label">EMAIL RESMI MPOS</label><input type="email" class="form-input" id="kontakEmail" placeholder="email@domain.com"></div><div class="form-group"><label class="form-label">USERNAME INSTAGRAM (tanpa @)</label><input type="text" class="form-input" id="kontakIg" placeholder="mpos.smanpathlas"></div><button class="btn-primary" style="width:auto;padding:9px 22px" onclick="saveKontak()">SIMPAN KONTAK</button></div></div>`;
   try{
     const snap = await getDoc(doc(db,'config','kontak'));
-    if(snap.exists()&&snap.data().email){
-      document.getElementById('kontakEmail').value = snap.data().email;
+    if(snap.exists()){
+      const d = snap.data();
+      if(d.email) document.getElementById('kontakEmail').value = d.email;
+      if(d.ig) document.getElementById('kontakIg').value = d.ig;
     }
   }catch(e){}
   window.saveKontak = async function(){
     const email=(document.getElementById('kontakEmail').value||'').trim();
+    const ig=(document.getElementById('kontakIg').value||'').trim().replace(/^@/,'');
     if(!email){ showNotif('Email tidak boleh kosong.','error'); return; }
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showNotif('Format email tidak valid.','error'); return; }
-    await setDoc(doc(db,'config','kontak'),{email});
-    showNotif('Email berhasil disimpan.','success');
+    await setDoc(doc(db,'config','kontak'),{email, ig});
+    showNotif('Kontak berhasil disimpan.','success');
+    writeActivityLog('UBAH KONTAK','Mengubah email: '+email+', IG: @'+ig);
     loadStrukturPublic();
   };
 }
@@ -2476,7 +3097,7 @@ async function loadSatgasMgmt(){
   window.saveWeekTims = async function(){
     const wt=[0,1,2,3,4].map(i=>parseInt(document.getElementById('weekTim'+i).value));
     await setDoc(doc(db,'satgas_config','schedule'),{weekTims:wt},{merge:true});
-    showNotif('Rotasi disimpan.','success');
+    showNotif('Rotasi disimpan.','success'); writeActivityLog('SIMPAN ROTASI SATGAS','Menyimpan rotasi mingguan satgas');
   };
   window.saveAllTims = async function(){
     const newTims={};
@@ -2484,21 +3105,50 @@ async function loadSatgasMgmt(){
       newTims[i]={mpk:(document.getElementById('tim'+i+'Mpk')?.value||'').split(',').map(s=>s.trim()).filter(Boolean),osis:(document.getElementById('tim'+i+'Osis')?.value||'').split(',').map(s=>s.trim()).filter(Boolean)};
     }
     await setDoc(doc(db,'satgas_config','schedule'),{tims:newTims},{merge:true});
-    showNotif('Semua tim disimpan.','success');
+    showNotif('Semua tim disimpan.','success'); writeActivityLog('SIMPAN TIM SATGAS','Menyimpan komposisi tim satgas');
   };
 }
 
 async function loadLogs(){
   const el = document.getElementById('logsContent');
-  el.innerHTML = `<div class="table-wrap"><div class="table-head"><div class="table-head-title">LOG LOGIN</div></div><div style="padding:14px 16px" id="logsListEl"></div></div>`;
+  el.innerHTML = `<div class="tab-bar"><button class="tab-btn active" onclick="switchLogTab('login',this)">LOG LOGIN</button><button class="tab-btn" onclick="switchLogTab('activity',this)">LOG AKTIVITAS</button></div><div id="logsLoginEl"></div><div id="logsActivityEl" style="display:none"></div>`;
+  await renderLoginLogs();
+  window.switchLogTab = async function(tab, btn){
+    document.querySelectorAll('#logsContent .tab-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    const loginEl = document.getElementById('logsLoginEl');
+    const actEl = document.getElementById('logsActivityEl');
+    if(tab==='login'){ loginEl.style.display=''; actEl.style.display='none'; await renderLoginLogs(); }
+    else { loginEl.style.display='none'; actEl.style.display=''; await renderActivityLogs(); }
+  };
+}
+
+async function renderLoginLogs(){
+  const el = document.getElementById('logsLoginEl');
+  if(!el) return;
+  el.innerHTML='<div class="table-wrap"><div class="table-head"><div class="table-head-title">LOG LOGIN</div></div><div style="padding:14px 16px" id="logsListEl"></div></div>';
   try{
     const snap = await getDocs(query(collection(db,'logs'),orderBy('ts','desc'),limit(80)));
     const listEl = document.getElementById('logsListEl');
-    if(!snap.size){ listEl.innerHTML='<div class="empty-state" style="padding:22px 0"><div class="empty-text">Belum ada log.</div></div>'; return; }
+    if(!snap.size){ listEl.innerHTML='<div class="empty-state" style="padding:22px 0"><div class="empty-text">Belum ada log login.</div></div>'; return; }
     let html='';
     snap.forEach(d=>{ const a=d.data(); html+=`<div class="log-entry"><div class="log-dot"></div><div class="log-info"><div class="log-main"><b>${escHtml(a.username||'—')}</b> <span style="color:#777;font-size:11px">${(a.org||'').toUpperCase()}</span></div><div class="log-meta">${escHtml(a.ip||'—')} · ${escHtml(a.city||'—')}, ${escHtml(a.country||'—')} · ${fmtDate(a.ts)}</div></div></div>`; });
     listEl.innerHTML = html;
-  }catch(e){ const listEl=document.getElementById('logsListEl'); if(listEl) listEl.innerHTML='<div style="color:#777;font-size:13px;padding:14px 0">Gagal memuat log.</div>'; }
+  }catch(e){ const listEl=document.getElementById('logsListEl'); if(listEl) listEl.innerHTML='<div style="color:#777;font-size:13px;padding:14px 0">Gagal memuat log login.</div>'; }
+}
+
+async function renderActivityLogs(){
+  const el = document.getElementById('logsActivityEl');
+  if(!el) return;
+  el.innerHTML='<div class="table-wrap"><div class="table-head"><div class="table-head-title">LOG AKTIVITAS</div></div><div style="padding:14px 16px" id="logsActListEl"></div></div>';
+  try{
+    const snap = await getDocs(query(collection(db,'activity_logs'),orderBy('ts','desc'),limit(120)));
+    const listEl = document.getElementById('logsActListEl');
+    if(!snap.size){ listEl.innerHTML='<div class="empty-state" style="padding:22px 0"><div class="empty-text">Belum ada log aktivitas.</div></div>'; return; }
+    let html='';
+    snap.forEach(d=>{ const a=d.data(); html+=`<div class="log-entry"><div class="log-dot" style="background:#E8D5B0"></div><div class="log-info"><div class="log-main"><b>${escHtml(a.name||a.username||'—')}</b> <span class="badge badge-outline" style="font-size:9px;padding:1px 7px;vertical-align:middle;margin-left:5px">${escHtml(a.aksi||'—')}</span></div><div class="log-meta">${escHtml(a.detail||'—')} · ${escHtml(a.waktu||fmtDate(a.ts))}</div></div></div>`; });
+    listEl.innerHTML = html;
+  }catch(e){ const listEl=document.getElementById('logsActListEl'); if(listEl) listEl.innerHTML='<div style="color:#777;font-size:13px;padding:14px 0">Gagal memuat log aktivitas.</div>'; }
 }
 
 async function loadProfil(){
@@ -2537,7 +3187,7 @@ const newName=(document.getElementById('newName').value||'').trim();
     if(updates.name){
       document.getElementById('sidebarUserName').textContent=updates.name;
     }
-    showNotif('Profil berhasil diperbarui.','success');
+    showNotif('Profil berhasil diperbarui.','success'); writeActivityLog('UBAH PROFIL','Memperbarui profil: '+JSON.stringify(updates));
     ['newUsername','oldPass','newPass','confPass'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     loadProfil();
   };
@@ -2620,19 +3270,19 @@ async function loadScanner(){
             <rect id="svgHole" rx="14" fill="black"/>
           </mask>
         </defs>
-        <!-- dim background -->
+        
         <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
-        <!-- animated corner box -->
+        
         <g id="svgFinderBox">
-          <!-- corner TL -->
+          
           <path id="cTL" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- corner TR -->
+          
           <path id="cTR" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- corner BL -->
+          
           <path id="cBL" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- corner BR -->
+          
           <path id="cBR" fill="none" stroke="#C0141C" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- success full border (hidden by default) -->
+          
           <rect id="svgSuccessRect" rx="14" fill="none" stroke="#4ade80" stroke-width="3" opacity="0"/>
         </g>
       </svg>
@@ -3181,9 +3831,9 @@ async function loadStrukturPublic(){
         <div style="font-size:12px;color:#777;margin-top:3px">Pembina MPK &amp; OSIS SMAN 14 Depok</div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="https://instagram.com/mpos.smanpathlas" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:7px;background:#1E1E1E;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;text-decoration:none;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(192,20,28,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+        <a href="https://instagram.com/${ig}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:7px;background:#1E1E1E;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;text-decoration:none;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(192,20,28,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8D5B0" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:#E8D5B0;letter-spacing:0.5px">@mpos.smanpathlas</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:#E8D5B0;letter-spacing:0.5px">@${ig}</span>
         </a>
         <a href="mailto:${escHtml(email)}" style="display:flex;align-items:center;gap:7px;background:#1E1E1E;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;text-decoration:none;transition:border-color 0.2s" onmouseover="this.style.borderColor='rgba(192,20,28,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8D5B0" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
