@@ -198,6 +198,24 @@ tr:hover td{background:rgba(255,255,255,0.012)}
 .notif.info{border-color:rgba(59,130,246,0.2);color:#60a5fa}
 .notif.meet{border-color:rgba(192,20,28,0.45);color:#E8293D}
 
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fadeInFast 0.18s ease}
+.confirm-box{background:#161616;border:1px solid rgba(255,255,255,0.1);border-radius:16px;width:100%;max-width:380px;overflow:hidden;animation:scaleIn 0.22s cubic-bezier(0.2,0.8,0.2,1)}
+.confirm-icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px}
+.confirm-icon-danger{background:rgba(192,20,28,0.15);border:1px solid rgba(192,20,28,0.3)}
+.confirm-icon-warn{background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.25)}
+.confirm-body{padding:28px 24px 20px;text-align:center}
+.confirm-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;margin-bottom:8px}
+.confirm-msg{font-size:13px;color:#aaa;line-height:1.7;margin-bottom:0}
+.confirm-footer{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid rgba(255,255,255,0.07)}
+.confirm-btn{padding:14px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;background:none;cursor:pointer;transition:background 0.15s;border:none}
+.confirm-btn-cancel{color:#777;border-right:1px solid rgba(255,255,255,0.07)}
+.confirm-btn-cancel:hover{background:rgba(255,255,255,0.04);color:#F8F8F6}
+.confirm-btn-ok{color:#f87171}
+.confirm-btn-ok:hover{background:rgba(192,20,28,0.12);color:#fca5a5}
+.confirm-btn-ok.warn{color:#facc15}
+.confirm-btn-ok.warn:hover{background:rgba(234,179,8,0.1);color:#fde68a}
+
+
 .search-bar{background:#1E1E1E;border:1px solid rgba(255,255,255,0.07);border-radius:7px;padding:9px 12px;color:#F8F8F6;font-family:'Barlow',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color 0.2s}
 .search-bar:focus{border-color:#C0141C}
 .search-bar::placeholder{color:#555}
@@ -608,6 +626,20 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
   </div>
 </div>
 
+<div id="confirmDialog" style="display:none" class="confirm-overlay" onclick="if(event.target===this)_confirmReject()">
+  <div class="confirm-box" onclick="event.stopPropagation()">
+    <div class="confirm-body">
+      <div class="confirm-icon confirm-icon-danger" id="confirmIcon">⚠️</div>
+      <div class="confirm-title" id="confirmTitle">KONFIRMASI</div>
+      <div class="confirm-msg" id="confirmMsg">Apakah kamu yakin?</div>
+    </div>
+    <div class="confirm-footer">
+      <button class="confirm-btn confirm-btn-cancel" onclick="_confirmReject()">BATAL</button>
+      <button class="confirm-btn confirm-btn-ok" id="confirmOkBtn" onclick="_confirmResolve()">YA, HAPUS</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -634,7 +666,10 @@ const LOCKOUT_MS = 5 * 60 * 1000;
 function fmtDate(ts){
   if(!ts) return '—';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return `${DAYS_ID[d.getDay()]}, ${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  // Tampilkan dalam WIB (UTC+7)
+  const wibOffset = 7 * 60;
+  const wib = new Date(d.getTime() + (wibOffset - d.getTimezoneOffset()) * 60000);
+  return `${DAYS_ID[wib.getDay()]}, ${wib.getDate()} ${MONTHS_ID[wib.getMonth()]} ${wib.getFullYear()} ${String(wib.getHours()).padStart(2,'0')}:${String(wib.getMinutes()).padStart(2,'0')}:${String(wib.getSeconds()).padStart(2,'0')} WIB`;
 }
 function fmtDateShort(ts){
   if(!ts) return '—';
@@ -642,6 +677,42 @@ function fmtDateShort(ts){
   return `${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`;
 }
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let _confirmResolveFn = null;
+let _confirmRejectFn  = null;
+
+window._confirmResolve = function(){
+  const d = document.getElementById('confirmDialog');
+  if(d) d.style.display='none';
+  if(_confirmResolveFn){ _confirmResolveFn(); _confirmResolveFn=null; _confirmRejectFn=null; }
+};
+window._confirmReject = function(){
+  const d = document.getElementById('confirmDialog');
+  if(d) d.style.display='none';
+  if(_confirmRejectFn){ _confirmRejectFn(); _confirmResolveFn=null; _confirmRejectFn=null; }
+};
+
+// Ganti confirm() bawaan browser dengan dialog modern
+// type: 'danger' (default, merah) | 'warn' (kuning)
+function showConfirm({ title='KONFIRMASI', msg='Apakah kamu yakin?', okLabel='YA, HAPUS', type='danger' }={}){
+  return new Promise((resolve, reject)=>{
+    const d  = document.getElementById('confirmDialog');
+    const ic = document.getElementById('confirmIcon');
+    const ti = document.getElementById('confirmTitle');
+    const ms = document.getElementById('confirmMsg');
+    const ok = document.getElementById('confirmOkBtn');
+    ti.textContent = title;
+    ms.textContent = msg;
+    ok.textContent = okLabel;
+    ok.className = 'confirm-btn confirm-btn-ok' + (type==='warn' ? ' warn' : '');
+    ic.className  = 'confirm-icon ' + (type==='warn' ? 'confirm-icon-warn' : 'confirm-icon-danger');
+    ic.textContent = type==='warn' ? '⚠️' : '🗑️';
+    _confirmResolveFn = resolve;
+    _confirmRejectFn  = reject;
+    d.style.display = 'flex';
+  });
+}
+
 
 let currentUser = null;
 let selectedOrg = 'mpk';
@@ -1659,22 +1730,51 @@ async function loadPelanggaran(){
       detail = (document.getElementById('detailPelanggaran').value||'').trim();
       if(!detail){ showNotif('Tulis detail pelanggaran.','error'); return; }
     }
-    await addDoc(collection(db,'pelanggaran'),{
-      siswaNama: selectedSiswa.nama,
-      siswaKelas: selectedSiswa.kelas,
-      siswaAbsen: selectedSiswa.absen,
-      detail,
-      dicatatOleh: currentUser.name,
-      dicatatUid: currentUser.uid,
-      ts: serverTimestamp()
-    });
-    resetCariSiswa();
-    showNotif('Pelanggaran berhasil dicatat.','success');
-    loadPelanggaranTable();
+
+    // Timestamp WIB (UTC+7) lengkap: hari, tanggal, bulan, tahun, jam, menit, detik
+    const now = new Date();
+    const wibOffset = 7 * 60; // menit
+    const wibDate = new Date(now.getTime() + (wibOffset - now.getTimezoneOffset()) * 60000);
+    const hari    = DAYS_ID[wibDate.getDay()];
+    const tgl     = String(wibDate.getDate()).padStart(2,'0');
+    const bln     = String(wibDate.getMonth()+1).padStart(2,'0');
+    const blnStr  = MONTHS_ID[wibDate.getMonth()];
+    const thn     = wibDate.getFullYear();
+    const jam     = String(wibDate.getHours()).padStart(2,'0');
+    const menit   = String(wibDate.getMinutes()).padStart(2,'0');
+    const detik   = String(wibDate.getSeconds()).padStart(2,'0');
+    const waktuWIB = `${hari}, ${tgl} ${blnStr} ${thn} ${jam}:${menit}:${detik} WIB`;
+    const tanggalStr = `${thn}-${bln}-${tgl}`; // format YYYY-MM-DD untuk filter
+
+    const btn = document.querySelector('#formPelanggaranWrap .btn-sm-red');
+    if(btn){ btn.disabled=true; btn.textContent='Menyimpan...'; }
+
     try{
-      const statEl=document.getElementById('statPelanggaran');
-      if(statEl) statEl.textContent=parseInt(statEl.textContent||'0')+1;
-    }catch(e){}
+      await addDoc(collection(db,'pelanggaran'),{
+        siswaNama:    selectedSiswa.nama,
+        siswaKelas:   selectedSiswa.kelas,
+        siswaAbsen:   selectedSiswa.absen,
+        detail,
+        dicatatOleh:  currentUser.name,
+        dicatatUid:   currentUser.uid,
+        waktuWIB,
+        tanggalStr,
+        hari,
+        ts: serverTimestamp()
+      });
+      resetCariSiswa();
+      showNotif('Pelanggaran berhasil dicatat — ' + waktuWIB, 'success');
+      loadPelanggaranTable();
+      try{
+        const statEl=document.getElementById('statPelanggaran');
+        if(statEl) statEl.textContent=parseInt(statEl.textContent||'0')+1;
+      }catch(e){}
+    }catch(err){
+      console.error('simpanPelanggaran error:', err);
+      showNotif('Gagal menyimpan: ' + (err.message||'Periksa koneksi internet.'), 'error');
+    }finally{
+      if(btn){ btn.disabled=false; btn.textContent='✓ SIMPAN'; }
+    }
   };
 
   window.eksporPelanggaranCSV = async function(){
@@ -1746,7 +1846,7 @@ async function loadPelanggaran(){
   };
 
   window.hapusPelanggaran = async function(id){
-    if(!confirm('Hapus catatan pelanggaran ini?')) return;
+    try{ await showConfirm({title:'HAPUS PELANGGARAN',msg:'Catatan pelanggaran ini akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
     await deleteDoc(doc(db,'pelanggaran',id));
     showNotif('Catatan dihapus.','info');
     loadPelanggaranTable();
@@ -1776,7 +1876,7 @@ async function loadPelanggaranTable(){
         <td style="text-align:center"><span class="no-absen-badge">${a.siswaAbsen||'—'}</span></td>
         <td>${escHtml(a.detail||'—')}</td>
         <td style="font-size:12px;color:#aaa">${escHtml(a.dicatatOleh||'—')}</td>
-        <td style="white-space:nowrap;font-size:11px;color:#777">${fmtDate(a.ts)}</td>
+        <td style="white-space:nowrap;font-size:11px;color:#777">${escHtml(a.waktuWIB||fmtDate(a.ts))}</td>
         <td><button class="btn-hapus-pel" onclick="hapusPelanggaran('${d.id}')">HAPUS</button></td>
       </tr>`;
       no++;
@@ -1987,7 +2087,10 @@ async function loadInfoMgmt(){
     closeGenericModal(); loadInfoTable();
   };
 
-  window.hapusInfo = async function(id){ if(!confirm('Hapus info ini?')) return; await deleteDoc(doc(db,'infos',id)); showNotif('Info dihapus.','info'); loadInfoTable(); };
+  window.hapusInfo = async function(id){
+    try{ await showConfirm({title:'HAPUS INFO',msg:'Postingan informasi ini akan dihapus permanen.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
+    await deleteDoc(doc(db,'infos',id)); showNotif('Info dihapus.','info'); loadInfoTable();
+  };
   loadInfoTable();
 }
 
@@ -2033,7 +2136,10 @@ async function loadEventMgmt(){
     closeGenericModal(); loadEventTable();
   };
 
-  window.hapusEvent = async function(id){ if(!confirm('Hapus event ini?')) return; await deleteDoc(doc(db,'events',id)); showNotif('Event dihapus.','info'); loadEventTable(); };
+  window.hapusEvent = async function(id){
+    try{ await showConfirm({title:'HAPUS EVENT',msg:'Event ini akan dihapus permanen.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
+    await deleteDoc(doc(db,'events',id)); showNotif('Event dihapus.','info'); loadEventTable();
+  };
   loadEventTable();
 }
 
@@ -2088,7 +2194,7 @@ async function loadAkunMgmt(){
     const selected = map.filter(m=>document.getElementById(m.id)?.checked);
     if(!selected.length){ showNotif('Pilih minimal satu data.','error'); return; }
     const names = selected.map(m=>m.col).join(', ');
-    if(!confirm('Hapus data: '+names+'?\nTindakan ini tidak bisa dibatalkan!')) return;
+    try{ await showConfirm({title:'RESET DATA',msg:'Data berikut akan dihapus permanen: '+names+'. Tindakan ini tidak bisa dibatalkan!',okLabel:'YA, HAPUS SEMUA',type:'danger'}); }catch(e){ return; }
     let total = 0;
     for(const item of selected){
       try{
@@ -2179,9 +2285,15 @@ async function loadAkunMgmt(){
     window.switchAkunTab('list', document.querySelector('#akunContent .tab-btn'));
   };
 
-  window.resetPasswordAkun = async function(id){ if(!confirm('Reset password ke 565656?')) return; await updateDoc(doc(db,'accounts',id),{password:'565656'}); showNotif('Password direset.','success'); };
+  window.resetPasswordAkun = async function(id){
+    try{ await showConfirm({title:'RESET PASSWORD',msg:'Password akun ini akan direset ke default (565656).',okLabel:'YA, RESET',type:'warn'}); }catch(e){ return; }
+    await updateDoc(doc(db,'accounts',id),{password:'565656'}); showNotif('Password direset.','success');
+  };
   window.toggleCanPost = async function(id,cur){ await updateDoc(doc(db,'accounts',id),{canPost:!cur}); showNotif('Akses posting diperbarui.','success'); loadAkunTable(); };
-  window.hapusAkun = async function(id){ if(!confirm('Hapus akun ini? Tidak bisa dibatalkan.')) return; await deleteDoc(doc(db,'accounts',id)); showNotif('Akun dihapus.','info'); loadAkunTable(); };
+  window.hapusAkun = async function(id){
+    try{ await showConfirm({title:'HAPUS AKUN',msg:'Akun ini akan dihapus permanen dan tidak bisa dipulihkan.',okLabel:'YA, HAPUS'}); }catch(e){ return; }
+    await deleteDoc(doc(db,'accounts',id)); showNotif('Akun dihapus.','info'); loadAkunTable();
+  };
   window.filterAkunTable = function(val){ document.querySelectorAll('#akunTbody tr').forEach(r=>{ r.style.display=r.textContent.toLowerCase().includes(val.toLowerCase())?'':'none'; }); };
 
   await loadAkunTable();
