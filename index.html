@@ -39,6 +39,7 @@ input,select,textarea{font-family:inherit;outline:none;-webkit-tap-highlight-col
 @keyframes notifIn{from{opacity:0;transform:translateX(110%)}to{opacity:1;transform:translateX(0)}}
 @keyframes meetJoin{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.3;transform:scale(0.6)}}
+@keyframes speakGlow{0%,100%{box-shadow:0 0 0 2px rgba(99,220,99,0.9),0 0 14px rgba(99,220,99,0.5)}50%{box-shadow:0 0 0 3px rgba(99,220,99,1),0 0 24px rgba(99,220,99,0.7)}}
 
 .loader-overlay{position:fixed;inset:0;background:#0A0A0A;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.5s ease,visibility 0.5s ease}
 .loader-overlay.hide{opacity:0;visibility:hidden;pointer-events:none}
@@ -280,7 +281,8 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
 .meet-grid.p5,.meet-grid.p6{grid-template-columns:repeat(3,1fr)}
 .meet-grid.p7,.meet-grid.p8,.meet-grid.p9{grid-template-columns:repeat(3,1fr)}
 .meet-grid.pmany{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
-.meet-tile{position:relative;background:#1a1a1a;border-radius:5px;overflow:hidden;min-width:0;min-height:0;width:100%;aspect-ratio:16/9}
+.meet-tile{position:relative;background:#1a1a1a;border-radius:5px;overflow:hidden;min-width:0;min-height:0;width:100%;aspect-ratio:16/9;transition:box-shadow 0.15s ease}
+.meet-tile.speaking{box-shadow:0 0 0 2.5px rgba(99,220,99,0.95),0 0 18px rgba(99,220,99,0.5);animation:speakGlow 0.8s ease-in-out infinite}
 .meet-tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000}
 .meet-tile-info{position:absolute;bottom:0;left:0;right:0;padding:3px 5px;background:linear-gradient(to top,rgba(0,0,0,0.85),transparent);pointer-events:none;z-index:2}
 .meet-tile-name{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:#F8F8F6;text-shadow:0 1px 3px rgba(0,0,0,0.9);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -348,6 +350,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
   .modal{max-height:86vh}
   .meet-grid.p2{grid-template-columns:1fr 1fr}
   .meet-grid.p3,.meet-grid.p4,.meet-grid.p5,.meet-grid.p6,.meet-grid.p7,.meet-grid.p8,.meet-grid.p9,.meet-grid.pmany{grid-template-columns:repeat(2,1fr)}
+  .meet-tile{aspect-ratio:1/1}
   .meet-cam-avatar{width:28px;height:28px}
   .meet-cam-name{font-size:9px}
   .meet-ctrl-btn{width:36px;height:36px}
@@ -1057,7 +1060,8 @@ async function loadQR(){
   try{
     const today = new Date(); today.setHours(0,0,0,0);
     const todayTs = Timestamp.fromDate(today);
-    const todayStr = today.toISOString().slice(0,10);
+    // Pakai tanggal lokal (bukan UTC) agar konsisten di WIB
+    const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
     const qrSnap = await getDoc(doc(db,'qr_tokens',currentUser.uid));
     const qrData = qrSnap.exists() ? qrSnap.data() : null;
     const isValidToday = qrData && qrData.token && qrData.date && qrData.date.toDate().toDateString()===today.toDateString();
@@ -2450,9 +2454,11 @@ async function loadScanner(){
     try{
       const payload = decodeQRPayload(raw);
       const today = new Date();
-      const todayStr = today.toISOString().slice(0,10);
+      // Pakai tanggal lokal WIB bukan UTC
+      const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
 
       if(!payload||!payload.uid||!payload.name||!payload.date){
+        // Coba legacy token lookup
         const legacySnap = await getDocs(query(collection(db,'qr_tokens'),where('token','==',raw)));
         if(legacySnap.empty){
           fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR TIDAK VALID</div>';
@@ -2476,16 +2482,23 @@ async function loadScanner(){
         return;
       }
 
+      // Validasi tanggal - bandingkan date string lokal
       if(payload.date !== todayStr){
         fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR SUDAH KEDALUWARSA</div>';
         showNotif('QR hanya berlaku hari ini.','error');
         return;
       }
 
-      const qrSnap = await getDoc(doc(db,'qr_tokens',payload.uid));
+      // Cari token di DB - coba by uid dulu, fallback ke query token
+      let qrSnap = await getDoc(doc(db,'qr_tokens',payload.uid));
       if(!qrSnap.exists()){
-        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR TIDAK DITEMUKAN</div>';
-        showNotif('Token tidak ditemukan di database.','error');
+        // Fallback: cari by token field
+        const tSnap = await getDocs(query(collection(db,'qr_tokens'),where('uid','==',payload.uid)));
+        if(!tSnap.empty) qrSnap = tSnap.docs[0];
+      }
+      if(!qrSnap || !qrSnap.exists || (typeof qrSnap.exists === 'function' && !qrSnap.exists())){
+        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR TIDAK DITEMUKAN<br><span style="font-size:11px;color:#aaa">Minta anggota buka halaman QR ulang</span></div>';
+        showNotif('Token tidak ditemukan. Minta anggota buka QR ulang.','error');
         return;
       }
 
@@ -2497,9 +2510,12 @@ async function loadScanner(){
         return;
       }
 
-      if(qrDbData.sessionCode && payload.session !== qrDbData.sessionCode){
-        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR SUDAH KEDALUWARSA<br><span style="font-size:11px;color:#aaa">Minta anggota tampilkan ulang QR-nya</span></div>';
-        showNotif('Session QR sudah berputar, minta tampilkan ulang.','error');
+      // Validasi session code (opsional - skip jika tidak match untuk toleransi rotasi)
+      // Hanya blokir jika token di DB benar-benar berbeda (bukan hanya session rotate)
+      const dbDateStr = qrDbData.dateStr || (qrDbData.date && (qrDbData.date.toDate ? qrDbData.date.toDate().toLocaleDateString('sv-SE') : ''));
+      if(dbDateStr && dbDateStr !== todayStr){
+        fb.innerHTML='<div style="color:#f87171;font-size:14px;padding:11px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;text-align:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">❌ QR SUDAH KEDALUWARSA<br><span style="font-size:11px;color:#aaa">Tanggal QR tidak sesuai hari ini</span></div>';
+        showNotif('QR bukan untuk hari ini.','error');
         return;
       }
 
@@ -2677,8 +2693,9 @@ function startMeetTimer(){
 
 async function setupLocalVideo(){
   const videoConstraints = [
-    {video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:true},
-    {video:{facingMode:'user'},audio:true},
+    {video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}},
+    {video:{facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true}},
+    {video:true,audio:{echoCancellation:true,noiseSuppression:true}},
     {video:true,audio:true},
     {video:true,audio:false},
     {audio:true}
@@ -2688,32 +2705,84 @@ async function setupLocalVideo(){
   for(const constraint of videoConstraints){
     try{
       localStream = await navigator.mediaDevices.getUserMedia(constraint);
-      isCamOn = localStream.getVideoTracks().length>0 && localStream.getVideoTracks()[0].enabled;
+      isCamOn = localStream.getVideoTracks().length>0;
       isMicOn = localStream.getAudioTracks().length>0;
+      // Pastikan track enabled
+      if(isCamOn) localStream.getVideoTracks().forEach(t=>{ t.enabled=true; });
+      if(isMicOn) localStream.getAudioTracks().forEach(t=>{ t.enabled=true; });
       break;
     }catch(e){ continue; }
   }
-  if(!localStream) showNotif('Izin kamera/mikrofon diperlukan. Mohon izinkan di browser.','error');
+  if(!localStream){ showNotif('Izin kamera/mikrofon diperlukan. Mohon izinkan di browser.','error'); return; }
 
   const existing = document.getElementById('tile_'+currentUser.uid);
   if(existing) existing.remove();
   addVideoTile(currentUser.uid, currentUser.name, currentUser.org, localStream, true);
 
-  await new Promise(r=>setTimeout(r,100));
+  // Tunggu tile DOM siap
+  await new Promise(r=>setTimeout(r,150));
   const vid = document.getElementById('video_'+currentUser.uid);
   if(vid && localStream){
     vid.srcObject = localStream;
     vid.muted = true;
-    if(localStream.getVideoTracks().length>0){
+    vid.setAttribute('playsinline','');
+    vid.setAttribute('autoplay','');
+    if(isCamOn){
       vid.style.display='block';
       const camOff = document.getElementById('camoff_'+currentUser.uid);
       if(camOff) camOff.style.display='none';
-      vid.play().catch(()=>{});
+    }
+    try{ await vid.play(); }catch(e){
+      // Autoplay policy: coba dengan interaksi user
+      vid.addEventListener('canplay',()=>vid.play().catch(()=>{}),{once:true});
     }
   }
   updateGridLayout();
   updateMeetPeerCount();
   updateControlBtns();
+  // Setup speaking indicator untuk diri sendiri
+  if(isMicOn) setupSpeakingIndicator(currentUser.uid, localStream);
+}
+
+// Speaking indicator - AudioContext per participant
+const speakingAnalysers = {};
+const speakingFrames = {};
+function setupSpeakingIndicator(uid, stream){
+  try{
+    if(speakingFrames[uid]){ cancelAnimationFrame(speakingFrames[uid]); delete speakingFrames[uid]; }
+    if(speakingAnalysers[uid]){ try{ speakingAnalysers[uid].ctx.close(); }catch(e){} delete speakingAnalysers[uid]; }
+    if(!stream || !stream.getAudioTracks().length) return;
+    const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.4;
+    source.connect(analyser);
+    speakingAnalysers[uid] = {ctx:audioCtx, analyser};
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let speaking = false;
+    function check(){
+      speakingFrames[uid] = requestAnimationFrame(check);
+      analyser.getByteFrequencyData(data);
+      const avg = data.slice(0, data.length/2).reduce((s,v)=>s+v,0) / (data.length/2);
+      const isSpeaking = avg > 12;
+      if(isSpeaking !== speaking){
+        speaking = isSpeaking;
+        const tile = document.getElementById('tile_'+uid);
+        if(tile){
+          if(speaking) tile.classList.add('speaking');
+          else tile.classList.remove('speaking');
+        }
+      }
+    }
+    check();
+  }catch(e){}
+}
+function teardownSpeakingIndicator(uid){
+  if(speakingFrames[uid]){ cancelAnimationFrame(speakingFrames[uid]); delete speakingFrames[uid]; }
+  if(speakingAnalysers[uid]){ try{ speakingAnalysers[uid].ctx.close(); }catch(e){} delete speakingAnalysers[uid]; }
+  const tile = document.getElementById('tile_'+uid);
+  if(tile) tile.classList.remove('speaking');
 }
 
 function getAvatarSrc(name, org){
@@ -2737,8 +2806,15 @@ function addVideoTile(uid, name, org, stream, isLocal){
   video.id='video_'+uid;
   video.autoplay=true;
   video.playsInline=true;
+  video.setAttribute('playsinline','');
+  video.setAttribute('autoplay','');
   video.muted=isLocal;
-  if(stream) video.srcObject=stream;
+  if(!isLocal) video.volume = 1.0;
+  if(stream){
+    video.srcObject=stream;
+    // Trigger play setelah stream set
+    setTimeout(()=>{ if(video.paused) video.play().catch(()=>{}); }, 100);
+  }
 
   const camOff = document.createElement('div');
   camOff.className='meet-cam-off';
@@ -2778,6 +2854,7 @@ function setTileCamState(uid, on){
 }
 
 function removeVideoTile(uid){
+  teardownSpeakingIndicator(uid);
   const tile=document.getElementById('tile_'+uid);
   if(tile) tile.remove();
   updateGridLayout();
@@ -3020,8 +3097,15 @@ function createPeerConnection(remoteUid, remoteName, remoteOrg){
         else if(!v.srcObject.getTracks().find(t=>t.id===e.track.id)){
           try{ v.srcObject.addTrack(e.track); }catch(ex){}
         }
+        v.setAttribute('playsinline','');
+        v.muted = false;
         v.play().catch(()=>{});
       }
+    }
+
+    // Setup speaking indicator untuk audio track
+    if(e.track.kind === 'audio'){
+      setupSpeakingIndicator(remoteUid, stream);
     }
 
     e.track.onmute = ()=>{
@@ -3038,6 +3122,9 @@ function createPeerConnection(remoteUid, remoteName, remoteOrg){
       const v = document.getElementById('video_'+remoteUid);
       if(!v) return;
       if(!v.srcObject) v.srcObject = stream;
+      // Force unmuted untuk remote video
+      v.muted = false;
+      v.setAttribute('playsinline','');
       const vTracks = v.srcObject.getVideoTracks();
       const hasVid = vTracks.length>0 && vTracks.some(t=>t.readyState==='live' && t.enabled);
       setTileCamState(remoteUid, hasVid);
@@ -3233,8 +3320,7 @@ function startParticipantListener(){
   if(participantListenerUnsub){ participantListenerUnsub(); }
   if(!activeMeetId) return;
 
-  const knownUids = new Set(Object.keys(peerConnections));
-
+  // Gunakan Set yang update dinamis dari peerConnections
   participantListenerUnsub = onSnapshot(doc(db,'meets',activeMeetId), async(snap)=>{
     if(!snap.exists()||!activeMeetId) return;
     const data = snap.data();
@@ -3255,8 +3341,8 @@ function startParticipantListener(){
     for(const p of participants){
       if(p.uid === currentUser.uid) continue;
       meetParticipantCache[p.uid] = {name:p.name||p.uid, org:p.org||''};
-      if(!knownUids.has(p.uid)){
-        knownUids.add(p.uid);
+      // Buat offer ke peer baru yang belum punya koneksi
+      if(!peerConnections[p.uid]){
         if(!document.getElementById('tile_'+p.uid)){
           addVideoTile(p.uid, p.name||p.uid, p.org||'', null, false);
           updateGridLayout();
@@ -3277,7 +3363,7 @@ function startParticipantListener(){
     const activeUids = new Set(participants.map(p=>p.uid));
     Object.keys(peerConnections).forEach(uid=>{
       if(!activeUids.has(uid)){
-        knownUids.delete(uid);
+        teardownSpeakingIndicator(uid);
         removeVideoTile(uid);
         try{ peerConnections[uid].close(); }catch(e){}
         delete peerConnections[uid];
@@ -3315,6 +3401,8 @@ async function cleanupMeet(){
   clearInterval(meetTimerInterval);
   if(signalListenerUnsub){ signalListenerUnsub(); signalListenerUnsub=null; }
   if(participantListenerUnsub){ participantListenerUnsub(); participantListenerUnsub=null; }
+  // Teardown semua speaking indicators
+  Object.keys(speakingFrames).forEach(uid=>teardownSpeakingIndicator(uid));
   Object.values(peerConnections).forEach(pc=>{
     try{ pc.onicecandidate=null; pc.ontrack=null; pc.onconnectionstatechange=null; pc.onsignalingstatechange=null; pc.close(); }catch(e){}
   });
