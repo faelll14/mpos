@@ -1146,13 +1146,18 @@ async function loadQR(){
   const el = document.getElementById('qrContent');
   if(qrRotateInterval){ clearInterval(qrRotateInterval); qrRotateInterval=null; }
   try{
-    const today = new Date(); today.setHours(0,0,0,0);
+    // Selalu hitung tanggal dalam WIB (UTC+7) agar konsisten dengan scanner
+    const nowRaw = new Date();
+    const wibOffset = 7*60;
+    const wibDate = new Date(nowRaw.getTime() + (wibOffset - nowRaw.getTimezoneOffset())*60000);
+    const todayStr = wibDate.getUTCFullYear()+'-'+String(wibDate.getUTCMonth()+1).padStart(2,'0')+'-'+String(wibDate.getUTCDate()).padStart(2,'0');
+    // today = tanggal WIB jam 00:00:00 dalam UTC, untuk disimpan ke Firestore
+    const today = new Date(Date.UTC(wibDate.getUTCFullYear(), wibDate.getUTCMonth(), wibDate.getUTCDate()) - wibOffset*60000);
     const todayTs = Timestamp.fromDate(today);
-    // Pakai tanggal lokal (bukan UTC) agar konsisten di WIB
-    const todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
     const qrSnap = await getDoc(doc(db,'qr_tokens',currentUser.uid));
     const qrData = qrSnap.exists() ? qrSnap.data() : null;
-    const isValidToday = qrData && qrData.token && qrData.date && qrData.date.toDate().toDateString()===today.toDateString();
+    // Bandingkan pakai dateStr (string YYYY-MM-DD) agar tidak terpengaruh timezone
+    const isValidToday = qrData && qrData.token && (qrData.dateStr === todayStr || (qrData.date && (() => { const d = qrData.date.toDate(); const dWib = new Date(d.getTime() + wibOffset*60000); return dWib.getUTCFullYear()+'-'+String(dWib.getUTCMonth()+1).padStart(2,'0')+'-'+String(dWib.getUTCDate()).padStart(2,'0'); })() === todayStr));
     if(!isValidToday){
       const onJadwal = await isSatgasHariIni();
       if(onJadwal){
