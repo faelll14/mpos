@@ -1131,13 +1131,23 @@ function genSession15(){
   return s;
 }
 
+// Format plain text: MPOS|uid|date|tim|session|name|jabatan|org|kelas
+// Tidak pakai base64/hash agar kamera bisa baca akurat
 function buildQRPayload(uid, username, name, jabatan, org, kelas, tim, dateStr, sessionCode){
-  const raw = JSON.stringify({uid,username,name,jabatan,org,kelas,tim,date:dateStr,session:sessionCode,v:1});
-  return btoa(unescape(encodeURIComponent(raw)));
+  // Sanitasi: ganti pipe & newline di field agar tidak merusak format
+  const clean = s => (s||'').replace(/[|\n\r]/g,' ').trim();
+  return ['MPOS', clean(uid), clean(dateStr), String(tim||0), clean(sessionCode),
+          clean(name), clean(jabatan), clean(org), clean(kelas)].join('|');
 }
 
-function decodeQRPayload(encoded){
-  try{ return JSON.parse(decodeURIComponent(escape(atob(encoded)))); }catch(e){ return null; }
+function decodeQRPayload(raw){
+  try{
+    if(!raw || !raw.startsWith('MPOS|')) return null;
+    const p = raw.split('|');
+    if(p.length < 9) return null;
+    return { uid:p[1], date:p[2], tim:Number(p[3])||0, session:p[4],
+             name:p[5], jabatan:p[6], org:p[7], kelas:p[8], v:2 };
+  }catch(e){ return null; }
 }
 
 let qrRotateInterval = null;
@@ -2575,14 +2585,13 @@ async function loadScanner(){
   let processing   = false;
 
   // ── SVG Finder Box logic (Telegram-style smooth tracking) ────
-  // Current animated position of the finder box (in video-space, then mapped to screen)
-  let fBox = null; // {cx, cy, size} in video coords, null = not tracking
-  let fTarget = null; // {cx, cy, size} in video coords
-  let fAnim = null;   // rAF id for box animation
+  let fBox = null;    // {sx, sy, sw, sh} current animated screen coords
+  let fVel = null;    // {sx, sy, sw, sh} velocity for spring physics
+  let fTarget = null; // target in video coords {cx, cy, size}
+  let fAnim = null;
 
   function lerp(a, b, t){ return a + (b - a) * t; }
 
-  // Draw the SVG finder box at screen coordinates
   function drawFinderBox(sx, sy, sw, sh, found){
     const hole  = document.getElementById('svgHole');
     const cTL   = document.getElementById('cTL');
@@ -2592,82 +2601,91 @@ async function loadScanner(){
     const succ  = document.getElementById('svgSuccessRect');
     if(!hole||!cTL) return;
 
-    const r = 14; // corner radius
-    const arm = Math.min(sw, sh) * 0.22; // corner arm length
+    const r = 14;
+    const arm = Math.min(sw, sh) * 0.22;
 
-    // Mask hole
     hole.setAttribute('x', sx); hole.setAttribute('y', sy);
     hole.setAttribute('width', sw); hole.setAttribute('height', sh);
     hole.setAttribute('rx', r);
 
-    // corner paths
-    // TL
     cTL.setAttribute('d',`M${sx+r+arm},${sy} Q${sx+r},${sy} ${sx+r},${sy+r} L${sx+r},${sy+r+arm}`);
-    // TR
     cTR.setAttribute('d',`M${sx+sw-r-arm},${sy} Q${sx+sw-r},${sy} ${sx+sw-r},${sy+r} L${sx+sw-r},${sy+r+arm}`);
-    // BL
     cBL.setAttribute('d',`M${sx+r+arm},${sy+sh} Q${sx+r},${sy+sh} ${sx+r},${sy+sh-r} L${sx+r},${sy+sh-r-arm}`);
-    // BR
     cBR.setAttribute('d',`M${sx+sw-r-arm},${sy+sh} Q${sx+sw-r},${sy+sh} ${sx+sw-r},${sy+sh-r} L${sx+sw-r},${sy+sh-r-arm}`);
 
-    // Success border
     succ.setAttribute('x', sx); succ.setAttribute('y', sy);
     succ.setAttribute('width', sw); succ.setAttribute('height', sh);
     succ.setAttribute('rx', r);
 
     if(found === 'ok'){
       succ.setAttribute('opacity','1');
-      cTL.setAttribute('stroke','#4ade80'); cTR.setAttribute('stroke','#4ade80');
-      cBL.setAttribute('stroke','#4ade80'); cBR.setAttribute('stroke','#4ade80');
+      ['cTL','cTR','cBL','cBR'].forEach(id=>{ const el=document.getElementById(id); if(el) el.setAttribute('stroke','#4ade80'); });
     } else {
       succ.setAttribute('opacity','0');
-      cTL.setAttribute('stroke','#C0141C'); cTR.setAttribute('stroke','#C0141C');
-      cBL.setAttribute('stroke','#C0141C'); cBR.setAttribute('stroke','#C0141C');
+      ['cTL','cTR','cBL','cBR'].forEach(id=>{ const el=document.getElementById(id); if(el) el.setAttribute('stroke','#C0141C'); });
     }
   }
 
-  // Map video coords to screen coords (accounting for object-fit:cover)
   function videoToScreen(vcx, vcy, vsize, video, wrap){
     const vw = video.videoWidth, vh = video.videoHeight;
     const dw = wrap.clientWidth,  dh = wrap.clientHeight;
     const scale = Math.max(dw/vw, dh/vh);
     const rendW = vw*scale, rendH = vh*scale;
     const offX  = (dw - rendW)/2, offY = (dh - rendH)/2;
-    const sx = vcx*scale + offX;
-    const sy = vcy*scale + offY;
-    const ss = vsize*scale;
-    return {sx, sy, sw:ss, sh:ss};
+    return { sx: vcx*scale + offX, sy: vcy*scale + offY, sw: vsize*scale, sh: vsize*scale };
   }
 
-  // Default (idle) box: centered on screen, 240×240 visual
   function getIdleBox(wrap){
     const dw = wrap.clientWidth, dh = wrap.clientHeight;
-    const size = Math.min(dw, dh) * 0.6;
-    return { sx: (dw-size)/2, sy: (dh-size)/2, sw: size, sh: size };
+    const size = Math.min(dw, dh) * 0.62;
+    return { sx:(dw-size)/2, sy:(dh-size)/2, sw:size, sh:size };
   }
 
-  // Animate the box towards fTarget using lerp
+  // Spring physics — feels like Telegram's scanner
   function animateFinderBox(video, wrap){
-    if(!fTarget || !video || !wrap){ fAnim=null; return; }
-    const {sx:tsx, sy:tsy, sw:tsw, sh:tsh} = videoToScreen(fTarget.cx-fTarget.size/2, fTarget.cy-fTarget.size/2, fTarget.size, video, wrap);
+    if(!video || !wrap){ fAnim=null; return; }
 
-    // Initialise fBox to idle position on first frame
-    if(!fBox){
-      const idle = getIdleBox(wrap);
-      fBox = {sx:idle.sx, sy:idle.sy, sw:idle.sw, sh:idle.sh};
+    const idle = getIdleBox(wrap);
+    let target;
+    if(fTarget){
+      const t = videoToScreen(fTarget.cx - fTarget.size/2, fTarget.cy - fTarget.size/2, fTarget.size, video, wrap);
+      target = t;
+    } else {
+      target = idle;
     }
 
-    const spd = 0.18; // lerp speed — smooth like Telegram
-    fBox.sx = lerp(fBox.sx, tsx, spd);
-    fBox.sy = lerp(fBox.sy, tsy, spd);
-    fBox.sw = lerp(fBox.sw, tsw, spd);
-    fBox.sh = lerp(fBox.sh, tsh, spd);
+    if(!fBox)   fBox = {...(fTarget ? target : idle)};
+    if(!fVel)   fVel = {sx:0, sy:0, sw:0, sh:0};
+
+    // Spring constants: stiffness & damping — tuned for buttery smoothness
+    const stiffness = 0.22;  // higher = snappier
+    const damping   = 0.72;  // higher = less oscillation
+
+    let settled = true;
+    for(const k of ['sx','sy','sw','sh']){
+      const force = (target[k] - fBox[k]) * stiffness;
+      fVel[k]  = fVel[k] * damping + force;
+      fBox[k] += fVel[k];
+      if(Math.abs(fVel[k]) > 0.05 || Math.abs(target[k] - fBox[k]) > 0.5) settled = false;
+    }
 
     drawFinderBox(fBox.sx, fBox.sy, fBox.sw, fBox.sh, null);
+
+    if(settled && !fTarget){
+      // Snap to idle exactly and stop loop to save CPU
+      fBox = {...idle};
+      drawFinderBox(fBox.sx, fBox.sy, fBox.sw, fBox.sh, null);
+      fAnim = null;
+      return;
+    }
+
     fAnim = requestAnimationFrame(()=>animateFinderBox(video, wrap));
   }
 
-  // Start idle rendering (no QR detected)
+  function ensureBoxAnimating(video, wrap){
+    if(!fAnim) fAnim = requestAnimationFrame(()=>animateFinderBox(video, wrap));
+  }
+
   function renderIdleBox(wrap){
     const idle = getIdleBox(wrap);
     if(!fBox) fBox = {...idle};
@@ -2690,22 +2708,17 @@ async function loadScanner(){
 
     let frameCount = 0;
 
-    // Draw idle box immediately
-    renderIdleBox(wrap);
+    // Mulai animasi idle box
+    ensureBoxAnimating(video, wrap);
 
     function tick(){
       scanRafId = requestAnimationFrame(tick);
       if(!video||video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
       if(!video.videoWidth||!video.videoHeight) return;
 
-      // Draw idle box while waiting (every frame for smooth animation)
-      if(!fTarget && !processing){
-        renderIdleBox(wrap);
-      }
-
       if(processing||cooldown) return;
 
-      // Scan every 2 frames for perf (≈30fps on 60fps device)
+      // Scan every 2 frames
       frameCount++;
       if(frameCount % 2 !== 0) return;
 
@@ -2759,8 +2772,8 @@ async function loadScanner(){
       }
 
       if(!code||!code.data){
-        // Slowly drift back to idle if no QR seen
-        fTarget = null;
+        // Drift back to idle
+        if(fTarget){ fTarget = null; ensureBoxAnimating(video, wrap); }
         return;
       }
 
@@ -2771,14 +2784,12 @@ async function loadScanner(){
         const ys=[loc.topLeftCorner.y,loc.topRightCorner.y,loc.bottomLeftCorner.y,loc.bottomRightCorner.y];
         const minX=Math.min(...xs), maxX=Math.max(...xs);
         const minY=Math.min(...ys), maxY=Math.max(...ys);
-        const pad  = (maxX-minX)*0.12;
+        const pad  = (maxX-minX)*0.15;
         const size = Math.max(maxX-minX, maxY-minY) + pad*2;
         const cx   = (minX+maxX)/2;
         const cy   = (minY+maxY)/2;
-        fTarget    = {cx, cy, size};
-
-        // Start box animation if not already running
-        if(!fAnim) animateFinderBox(video, wrap);
+        fTarget = {cx, cy, size};
+        ensureBoxAnimating(video, wrap);
       }
 
       if(code.data === lastRaw) return;
@@ -2789,7 +2800,7 @@ async function loadScanner(){
 
       prosesTokenScan(code.data).finally(()=>{
         processing = false;
-        setTimeout(()=>{ cooldown=false; lastRaw=null; fTarget=null; fBox=null; fAnim=null; }, 2500);
+        setTimeout(()=>{ cooldown=false; lastRaw=null; fTarget=null; fBox=null; fVel=null; fAnim=null; ensureBoxAnimating(video,wrap); }, 2500);
       });
     }
     tick();
@@ -2798,7 +2809,7 @@ async function loadScanner(){
   // ── Buka scanner ────────────────────────────────────────────
   document.getElementById('btnBukaScanner').onclick = async function(){
     modal.style.display = 'flex';
-    fBox=null; fTarget=null; fAnim=null;
+    fBox=null; fVel=null; fTarget=null; fAnim=null;
     statusHint('Memuat kamera...');
 
     // Load jsQR
@@ -2849,7 +2860,7 @@ async function loadScanner(){
     if(scanRafId){ cancelAnimationFrame(scanRafId); scanRafId=null; }
     if(fAnim)    { cancelAnimationFrame(fAnim);     fAnim=null;     }
     if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
-    lastRaw=null; cooldown=false; processing=false; fBox=null; fTarget=null;
+    lastRaw=null; cooldown=false; processing=false; fBox=null; fVel=null; fTarget=null;
     modal.style.display='none';
   }
   document.getElementById('btnTutupScanner').onclick = tutupScanner;
@@ -2859,18 +2870,19 @@ async function loadScanner(){
   async function prosesTokenScan(raw){
     statusHint('⏳ Memverifikasi...');
     try{
-      // Hitung waktu WIB sekarang
+      // Hitung waktu WIB — IDENTIK dengan cara di loadQR() agar tanggal selalu sama
       const now       = new Date();
       const wibOffset = 7*60;
       const wibDate   = new Date(now.getTime() + (wibOffset - now.getTimezoneOffset())*60000);
-      const todayStr  = wibDate.getFullYear()+'-'+String(wibDate.getMonth()+1).padStart(2,'0')+'-'+String(wibDate.getDate()).padStart(2,'0');
-      const hari      = DAYS_ID[wibDate.getDay()];
-      const tgl       = wibDate.getDate();
-      const blnStr    = MONTHS_ID[wibDate.getMonth()];
-      const thn       = wibDate.getFullYear();
-      const jam       = String(wibDate.getHours()).padStart(2,'0');
-      const menit     = String(wibDate.getMinutes()).padStart(2,'0');
-      const detik     = String(wibDate.getSeconds()).padStart(2,'0');
+      // Pakai getUTC* setelah shift agar tidak terpengaruh timezone device
+      const todayStr  = wibDate.getUTCFullYear()+'-'+String(wibDate.getUTCMonth()+1).padStart(2,'0')+'-'+String(wibDate.getUTCDate()).padStart(2,'0');
+      const hari      = DAYS_ID[wibDate.getUTCDay()];
+      const tgl       = wibDate.getUTCDate();
+      const blnStr    = MONTHS_ID[wibDate.getUTCMonth()];
+      const thn       = wibDate.getUTCFullYear();
+      const jam       = String(wibDate.getUTCHours()).padStart(2,'0');
+      const menit     = String(wibDate.getUTCMinutes()).padStart(2,'0');
+      const detik     = String(wibDate.getUTCSeconds()).padStart(2,'0');
       const tanggalStr= `${hari}, ${tgl} ${blnStr} ${thn}`;
       const waktuWIB  = `${hari}, ${tgl} ${blnStr} ${thn} ${jam}:${menit}:${detik} WIB`;
 
@@ -2905,9 +2917,13 @@ async function loadScanner(){
 
       const dbData = tokenSnap.data();
 
-      // Cek tanggal token di DB
-      const dbDateStr = dbData.dateStr ||
-        (dbData.date ? (dbData.date.toDate ? dbData.date.toDate().toISOString().slice(0,10) : String(dbData.date).slice(0,10)) : null);
+      // Cek tanggal token di DB — konversi ke WIB dulu
+      let dbDateStr = dbData.dateStr || null;
+      if(!dbDateStr && dbData.date){
+        const dbTs = dbData.date.toDate ? dbData.date.toDate() : new Date(dbData.date);
+        const dbWib = new Date(dbTs.getTime() + (wibOffset - dbTs.getTimezoneOffset())*60000);
+        dbDateStr = dbWib.getUTCFullYear()+'-'+String(dbWib.getUTCMonth()+1).padStart(2,'0')+'-'+String(dbWib.getUTCDate()).padStart(2,'0');
+      }
       if(dbDateStr && dbDateStr !== todayStr){
         statusErr('❌ QR KEDALUWARSA<br><span style="font-size:11px;color:#aaa">Token server untuk '+dbDateStr+', bukan hari ini</span>');
         showNotif('QR tidak berlaku hari ini.','error'); return;
