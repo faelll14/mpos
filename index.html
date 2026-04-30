@@ -1073,6 +1073,8 @@ window.doLogout = async function(){
   const guest = document.getElementById('pageGuest');
   dash.classList.remove('active'); dash.style.display='none';
   guest.style.display='block'; guest.classList.add('active');
+  const guestBar = document.getElementById('guestTopBar');
+  if(guestBar) guestBar.style.display='flex';
   document.getElementById('meetJoinBanner').style.display='none';
   showNotif('Berhasil keluar.','info');
 };
@@ -1167,6 +1169,8 @@ function enterDash(){
   dash.style.removeProperty('display');
   dash.style.cssText = 'display:block !important';
   dash.classList.add('active');
+  const guestBar = document.getElementById('guestTopBar');
+  if(guestBar) guestBar.style.display='none';
   document.getElementById('sidebarUserName').textContent = currentUser.name||'—';
   document.getElementById('sidebarUserRole').textContent = (currentUser.jabatan||currentUser.role||'Anggota') + ' · ' + (currentUser.org||'').toUpperCase();
   buildSidebarNav(currentUser);
@@ -1193,7 +1197,8 @@ async function loadDashboard(){
 
 async function renderSatgasHariIni(){
   const el = document.getElementById('satgasHariIni');
-  const dayIdx = new Date().getDay();
+  const nowWIB = new Date(new Date().getTime() + (7*60 - new Date().getTimezoneOffset())*60000);
+  const dayIdx = nowWIB.getUTCDay();
   if(dayIdx===0||dayIdx===6){ el.innerHTML=''; return; }
   try{
     const snap = await getDoc(doc(db,'satgas_config','schedule'));
@@ -1212,7 +1217,8 @@ async function isSatgasHariIni(){
     const snap = await getDoc(doc(db,'satgas_config','schedule'));
     if(!snap.exists()) return false;
     const cfg = snap.data();
-    const dayIdx = new Date().getDay();
+    const nowWIB = new Date(new Date().getTime() + (7*60 - new Date().getTimezoneOffset())*60000);
+    const dayIdx = nowWIB.getUTCDay();
     if(dayIdx===0||dayIdx===6) return false;
     const dayMap = {1:0,2:1,3:2,4:3,5:4};
     const weekTims = computeWeekTims(new Date());
@@ -1311,7 +1317,8 @@ async function getTodayTim(){
     const snap = await getDoc(doc(db,'satgas_config','schedule'));
     if(!snap.exists()) return 0;
     const cfg = snap.data();
-    const dayIdx = new Date().getDay();
+    const nowWIB = new Date(new Date().getTime() + (7*60 - new Date().getTimezoneOffset())*60000);
+    const dayIdx = nowWIB.getUTCDay();
     const dayMap = {1:0,2:1,3:2,4:3,5:4};
     const weekTims = computeWeekTims(new Date());
     return weekTims[dayMap[dayIdx]]||0;
@@ -1327,7 +1334,8 @@ async function loadSatgasSchedule(){
     const cfg = snap.data();
     const tims = cfg.tims||{};
     const weekTims = computeWeekTims(new Date());
-    const todayDay = new Date().getDay();
+    const nowWIB = new Date(new Date().getTime() + (7*60 - new Date().getTimezoneOffset())*60000);
+    const todayDay = nowWIB.getUTCDay();
     const tomorrowDay = todayDay === 6 ? 1 : todayDay === 5 ? 1 : todayDay + 1;
     const workDays = [1,2,3,4,5];
     let html = '';
@@ -2132,7 +2140,9 @@ async function loadAbsensi(){
     const targetDate = filterTanggal || todayStr;
     const wibNow = getWIBNow();
     const isToday = targetDate === todayStr;
-    const targetDayIdx = new Date(parseInt(targetDate.split('-')[0]),parseInt(targetDate.split('-')[1])-1,parseInt(targetDate.split('-')[2])).getDay();
+    const _tParts = targetDate.split('-');
+    const _tDateUTC = new Date(Date.UTC(parseInt(_tParts[0]),parseInt(_tParts[1])-1,parseInt(_tParts[2])));
+    const targetDayIdx = _tDateUTC.getUTCDay();
     const isWeekday = targetDayIdx>=1 && targetDayIdx<=5;
 
     const timNum = getTimForDate(targetDate);
@@ -4818,9 +4828,12 @@ async function initSatgasSchedule(){
   };
   try{
     const snap = await getDoc(doc(db,'satgas_config','schedule'));
-    const now = new Date();
+    const nowRaw = new Date();
+    const wibOff = 7*60;
+    const nowWIB = new Date(nowRaw.getTime() + (wibOff - nowRaw.getTimezoneOffset())*60000);
+    const now = new Date(Date.UTC(nowWIB.getUTCFullYear(), nowWIB.getUTCMonth(), nowWIB.getUTCDate()));
     const weekTims = computeWeekTims(now);
-    const weekKey = now.getFullYear() + '-W' + String(getISOWeekNumber(now)).padStart(2,'0');
+    const weekKey = now.getUTCFullYear() + '-W' + String(getISOWeekNumber(now)).padStart(2,'0');
     if(snap.exists()){
       const data = snap.data();
       const hasTims = data.tims && Object.keys(data.tims).length > 0;
