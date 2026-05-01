@@ -509,18 +509,18 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
   </section>
 
   <div class="section" id="welcomeSection" style="padding-bottom:0">
-    <div class="section-title">TENTANG <span>KAMI</span></div>
+    <div class="section-title">SAMBUTAN <span>KAMI</span></div>
     <div class="section-line"></div>
     <div style="background:linear-gradient(135deg,rgba(192,20,28,0.07),rgba(192,20,28,0.02));border:1px solid rgba(192,20,28,0.18);border-radius:16px;padding:28px 30px;max-width:820px;animation:slideUp 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.1s both">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#C0141C;margin-bottom:12px">MPOS — PLATFORM RESMI ORGANISASI SISWA</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#C0141C;margin-bottom:12px">MPK &amp; OSIS — SMA NEGERI 14 DEPOK</div>
       <p style="font-size:15px;line-height:1.85;color:#ccc;font-family:'Barlow',sans-serif;margin-bottom:14px">
-        Halo, Teman-teman! Selamat datang di MPOS — platform digital resmi milik <strong style="color:#E8D5B0">MPK (Majelis Perwakilan Kelas)</strong> dan <strong style="color:#E8D5B0">OSIS (Organisasi Siswa Intra Sekolah)</strong> SMA Negeri 14 Depok, Jawa Barat.
+        <strong style="color:#E8D5B0">MPK (Majelis Perwakilan Kelas)</strong> adalah lembaga legislatif siswa yang bertugas mengawasi, mengevaluasi, dan menyalurkan aspirasi terhadap kinerja OSIS serta kegiatan organisasi di SMAN 14 Depok. MPK menjadi jembatan antara siswa dan pengurus OSIS dalam mewujudkan tata kelola organisasi yang transparan dan akuntabel.
       </p>
       <p style="font-size:15px;line-height:1.85;color:#ccc;font-family:'Barlow',sans-serif;margin-bottom:14px">
-        Website ini kami hadirkan sebagai sarana untuk mempermudah akses informasi bagi seluruh warga sekolah maupun masyarakat umum. Di sini, kalian dapat dengan mudah membaca dan mengikuti perkembangan terkini mengenai <strong style="color:#E8D5B0">event, informasi organisasi, kegiatan, dan berbagai program</strong> yang kami selenggarakan, baik dari dalam maupun luar lingkungan sekolah.
+        <strong style="color:#E8D5B0">OSIS (Organisasi Siswa Intra Sekolah)</strong> adalah satu-satunya wadah organisasi siswa resmi di SMAN 14 Depok yang berperan aktif menggerakkan kegiatan kesiswaan, mengembangkan potensi siswa, serta menyelenggarakan berbagai program dan event yang bermanfaat bagi seluruh warga sekolah.
       </p>
       <p style="font-size:15px;line-height:1.85;color:#ccc;font-family:'Barlow',sans-serif;margin-bottom:0">
-        Kami berkomitmen agar seluruh kegiatan dan prestasi organisasi kami dapat diketahui oleh semua pihak secara transparan dan mudah diakses. Bersama MPK dan OSIS SMAN 14 Depok, kami terus bergerak demi kemajuan dan kesejahteraan seluruh siswa.
+        <strong style="color:#E8D5B0">MPOS</strong> hadir sebagai platform digital resmi kedua organisasi ini — menyatukan sistem absensi, informasi, event, dan manajemen organisasi dalam satu tempat yang mudah diakses oleh seluruh anggota maupun masyarakat umum.
       </p>
       <div style="display:flex;gap:9px;margin-top:20px;flex-wrap:wrap">
         <span class="badge badge-red">MPK SMAN 14</span>
@@ -1411,7 +1411,8 @@ function getWeekDate(dayOfWeek){
   const wibOff = 7*60;
   const nowWIB = new Date(nowRaw.getTime() + (wibOff - nowRaw.getTimezoneOffset())*60000);
   const todayDayWIB = nowWIB.getUTCDay();
-  const diff = dayOfWeek - todayDayWIB;
+  let diff = dayOfWeek - todayDayWIB;
+  if(diff < 0) diff += 7;
   const d = new Date(nowRaw);
   d.setDate(nowRaw.getDate() + diff);
   d.setHours(0,0,0,0);
@@ -2127,7 +2128,7 @@ async function loadAbsensi(){
   <div class="tab-bar" id="absensiTimBar">${timTabs}</div>
   <div class="table-wrap">
     <div class="table-head" style="flex-wrap:wrap;gap:8px">
-      <div class="table-head-title" id="absensiTableTitle">REKAP ABSENSI</div>
+      <div><div class="table-head-title" id="absensiTableTitle">REKAP ABSENSI</div><div id="absensiCutoffInfo" style="font-size:11px;color:#777;margin-top:2px;letter-spacing:0.3px"></div></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
         <input type="date" class="form-input" id="filterTanggal" style="width:160px;padding:6px 10px;font-size:13px" oninput="refreshAbsensiTable()">
         <button class="btn-sm btn-sm-outline" onclick="refreshAbsensiTable()">FILTER</button>
@@ -2173,12 +2174,11 @@ async function loadAbsensi(){
     refreshAbsensiTable();
   };
 
-  async function getAbsensiData(){
-    const tanggal = (document.getElementById('filterTanggal')?.value||'').trim();
+  async function getAbsensiData(forceDateStr){
+    const tanggal = forceDateStr || (document.getElementById('filterTanggal')?.value||'').trim() || todayStr;
     try{
-      let constraints = [orderBy('ts','desc')];
+      let constraints = [orderBy('ts','desc'), where('tanggal','==',tanggal)];
       if(activeTim) constraints.push(where('tim','==',activeTim));
-      if(tanggal) constraints.push(where('tanggal','==',tanggal));
       const snap = await getDocs(query(collection(db,'absensi_satgas'), ...constraints));
       const rows = [];
       snap.forEach(d=>rows.push({id:d.id,...d.data()}));
@@ -2202,7 +2202,7 @@ async function loadAbsensi(){
     const isWeekday = targetDayIdx>=1 && targetDayIdx<=5;
 
     const timNum = getTimForDate(targetDate);
-    const scannedRows = await getAbsensiData();
+    const scannedRows = await getAbsensiData(targetDate);
     const scannedUidMap = {};
     scannedRows.forEach(r=>{ scannedUidMap[(r.uid||r.nama).toLowerCase().trim()] = r; });
 
@@ -2240,7 +2240,14 @@ async function loadAbsensi(){
     }
 
     const cutoffPassed = isToday && (wibNow.getUTCHours()>CUTOFF_HOUR||(wibNow.getUTCHours()===CUTOFF_HOUR&&wibNow.getUTCMinutes()>=CUTOFF_MIN));
-    const isPast = !isToday;
+    const isPast = !isToday && targetDate < todayStr;
+    const cutoffInfoEl = document.getElementById('absensiCutoffInfo');
+    if(cutoffInfoEl){
+      if(isToday && !cutoffPassed) cutoffInfoEl.textContent = 'Batas absen hari ini: 15:30 WIB — masih bisa diabsen';
+      else if(isToday && cutoffPassed) cutoffInfoEl.textContent = 'Batas absen 15:30 WIB sudah lewat — tidak hadir dicatat otomatis';
+      else if(isPast) cutoffInfoEl.textContent = 'Menampilkan data tanggal '+targetDate;
+      else cutoffInfoEl.textContent = '';
+    }
     const hadir_idx = [], belum_idx = [], alfa_idx = [];
 
     const rows = members.map((m, i)=>{
@@ -2250,10 +2257,11 @@ async function loadAbsensi(){
         return rn===key||rn.includes(key.split(' ')[0]);
       });
       let status, statusClass, waktuScan;
-      if(scanRec){
+      const isAutoAlfa = scanRec && scanRec.autoAlfa===true;
+      if(scanRec && !isAutoAlfa){
         status='HADIR'; statusClass='status-hadir'; waktuScan=scanRec.waktuWIB||'—';
         hadir_idx.push(i);
-      } else if(isPast || cutoffPassed){
+      } else if(isAutoAlfa || isPast || cutoffPassed){
         status='TIDAK HADIR'; statusClass='status-alfa'; waktuScan='—';
         alfa_idx.push(i);
       } else {
@@ -2304,35 +2312,70 @@ async function loadAbsensi(){
     if(summaryEl) summaryEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"><div style="background:#1E1E1E;border:1px solid rgba(34,197,94,0.25);border-radius:8px;padding:8px 13px;text-align:center"><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ade80">${rows.length}</div><div style="font-size:10px;letter-spacing:1.5px;color:#777;font-family:'Barlow Condensed',sans-serif">TOTAL HADIR</div></div></div>`;
   }
 
+  async function buildFullAbsensiRows(targetDateStr){
+    const wibOff=7*60; const wibNow=new Date(new Date().getTime()+(wibOff-new Date().getTimezoneOffset())*60000);
+    const todayS=wibNow.getUTCFullYear()+'-'+String(wibNow.getUTCMonth()+1).padStart(2,'0')+'-'+String(wibNow.getUTCDate()).padStart(2,'0');
+    const isT=targetDateStr===todayS;
+    const cutoffP=isT&&(wibNow.getUTCHours()>15||(wibNow.getUTCHours()===15&&wibNow.getUTCMinutes()>=30));
+    const isPastD=!isT&&targetDateStr<todayS;
+    const _tp=targetDateStr.split('-');
+    const dayIdx=new Date(Date.UTC(parseInt(_tp[0]),parseInt(_tp[1])-1,parseInt(_tp[2]))).getUTCDay();
+    const scanRows = await getAbsensiData(targetDateStr);
+    const scanMap={};
+    scanRows.forEach(r=>{ const k=(r.nama||'').toLowerCase().trim(); if(!scanMap[k])scanMap[k]=r; });
+    const BASE=[1,2,3,4,5];
+    function getTimForExport(ds){ const p=ds.split('-');const d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));const di=d.getDay();if(di===0||di===6)return null;const dm={1:0,2:1,3:2,4:3,5:4};const wt=weekTimsData;if(!wt||!wt.length)return null;const REF_YEAR=2026;const REF_WEEK=18;function isoWeek(dt){const dd=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));const dn=dd.getUTCDay()||7;dd.setUTCDate(dd.getUTCDate()+4-dn);const ys=new Date(Date.UTC(dd.getUTCFullYear(),0,1));return Math.ceil((((dd-ys)/86400000)+1)/7);}const curWeek=isoWeek(d);const curYear=d.getFullYear();let weekDiff=(curYear===REF_YEAR)?(curWeek-REF_WEEK):((curYear-REF_YEAR)*52+(curWeek-REF_WEEK));const shift=((weekDiff%5)+5)%5;const rotated=[...BASE.slice(shift),...BASE.slice(0,shift)];return rotated[dm[di]]||null;}
+    const timNum=getTimForExport(targetDateStr);
+    const tglD=new Date(parseInt(_tp[0]),parseInt(_tp[1])-1,parseInt(_tp[2]));
+    const tglDisplay=DAYS_ID[tglD.getDay()]+', '+tglD.getDate()+' '+MONTHS_ID[tglD.getMonth()]+' '+tglD.getFullYear();
+    if(!timNum||dayIdx===0||dayIdx===6) return scanRows.map((a,i)=>{const tgl=a.ts?(a.ts.toDate?a.ts.toDate():new Date(a.ts)):null;return{no:i+1,nama:a.nama||'—',org:a.org||'—',tim:'Tim '+(a.tim||'?'),tanggal:a.tanggalStr||(tgl?DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear():'—'),status:a.autoAlfa?'TIDAK HADIR':'HADIR',waktu:a.waktuWIB||'—'};});
+    const tim=timsData[timNum]||{mpk:[],osis:[]};
+    const allMembers=[...(tim.mpk||[]).map(n=>({nama:n,org:'mpk'})),...(tim.osis||[]).map(n=>({nama:n,org:'osis'}))];
+    const members=activeTim&&activeTim!==timNum?[]:allMembers;
+    if(!members.length) return scanRows.map((a,i)=>{const tgl=a.ts?(a.ts.toDate?a.ts.toDate():new Date(a.ts)):null;return{no:i+1,nama:a.nama||'—',org:a.org||'—',tim:'Tim '+(a.tim||'?'),tanggal:a.tanggalStr||(tgl?DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear():'—'),status:a.autoAlfa?'TIDAK HADIR':'HADIR',waktu:a.waktuWIB||'—'};});
+    return members.map((m,i)=>{
+      const key=(m.nama||'').toLowerCase().trim();
+      const rec=scanMap[key];
+      const isAutoAlfa=rec&&rec.autoAlfa===true;
+      let status,waktu;
+      if(rec&&!isAutoAlfa){status='HADIR';waktu=rec.waktuWIB||'—';}
+      else if(isAutoAlfa||isPastD||cutoffP){status='TIDAK HADIR';waktu='—';}
+      else{status='BELUM ABSEN';waktu='—';}
+      return{no:i+1,nama:m.nama,org:m.org,tim:'Tim '+timNum,tanggal:tglDisplay,status,waktu};
+    });
+  }
+
   window.eksporAbsensiCSV = async function(){
-    const rows = await getAbsensiData();
-    if(!rows.length){ showNotif('Belum ada data untuk diekspor.','info'); return; }
+    const filterTanggal=(document.getElementById('filterTanggal')?.value||'').trim();
+    const wibOff=7*60;const wibNow=new Date(new Date().getTime()+(wibOff-new Date().getTimezoneOffset())*60000);
+    const todayS=wibNow.getUTCFullYear()+'-'+String(wibNow.getUTCMonth()+1).padStart(2,'0')+'-'+String(wibNow.getUTCDate()).padStart(2,'0');
+    const targetDate=filterTanggal||todayS;
+    const fullRows=await buildFullAbsensiRows(targetDate);
+    if(!fullRows.length){ showNotif('Belum ada data untuk diekspor.','info'); return; }
+    const timLabel=activeTim?'Tim '+activeTim:'Semua Tim';
     let csv='\uFEFF';
-    const timLabel = activeTim ? 'Tim '+activeTim : 'Semua Tim';
     csv+='Rekap Absensi Satgas MPOS \u2014 '+timLabel+'\n';
     csv+='No,Nama,Org,Tim,Tanggal,Status,Waktu Scan\n';
-    rows.forEach((a,i)=>{
-      const tgl = a.ts ? (a.ts.toDate ? a.ts.toDate() : new Date(a.ts)) : null;
-      const tglDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
-      csv+=`${i+1},"${a.nama||'—'}","${a.org||'—'}","Tim ${a.tim||'?'}","${tglDisplay}","HADIR","${a.waktuWIB||'—'}"\n`;
-    });
+    fullRows.forEach(r=>{ csv+=`${r.no},"${r.nama}","${r.org}","${r.tim}","${r.tanggal}","${r.status}","${r.waktu}"\n`; });
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url; a.download='absensi_satgas_'+(activeTim?'tim'+activeTim:'semua')+'_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+    a.href=url; a.download='absensi_satgas_'+(activeTim?'tim'+activeTim:'semua')+'_'+targetDate+'.csv'; a.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
     showNotif('CSV berhasil diunduh.','success');
   };
-
   window.eksporAbsensiPDF = async function(){
-    const rows = await getAbsensiData();
-    if(!rows.length){ showNotif('Belum ada data untuk diekspor.','info'); return; }
-    const timLabel = activeTim ? 'Tim '+activeTim : 'Semua Tim';
+    const filterTanggal=(document.getElementById('filterTanggal')?.value||'').trim();
+    const wibOff=7*60;const wibNow=new Date(new Date().getTime()+(wibOff-new Date().getTimezoneOffset())*60000);
+    const todayS=wibNow.getUTCFullYear()+'-'+String(wibNow.getUTCMonth()+1).padStart(2,'0')+'-'+String(wibNow.getUTCDate()).padStart(2,'0');
+    const targetDate=filterTanggal||todayS;
+    const fullRows=await buildFullAbsensiRows(targetDate);
+    if(!fullRows.length){ showNotif('Belum ada data untuk diekspor.','info'); return; }
+    const timLabel=activeTim?'Tim '+activeTim:'Semua Tim';
     let tableRows='';
-    rows.forEach((a,i)=>{
-      const tgl = a.ts ? (a.ts.toDate ? a.ts.toDate() : new Date(a.ts)) : null;
-      const tglDisplay = a.tanggalStr || (tgl ? DAYS_ID[tgl.getDay()]+', '+tgl.getDate()+' '+MONTHS_ID[tgl.getMonth()]+' '+tgl.getFullYear() : '—');
-      tableRows+=`<tr${i%2===1?' style="background:#f9f9f9"':''}><td style="text-align:center">${i+1}</td><td><b>${a.nama||'—'}</b></td><td>${a.org||'—'}</td><td style="text-align:center">Tim ${a.tim||'?'}</td><td>${tglDisplay}</td><td style="color:green;text-align:center;font-weight:700">HADIR</td><td style="font-size:11px">${a.waktuWIB||'—'}</td></tr>`;
+    fullRows.forEach((r,i)=>{
+      const statusColor=r.status==='HADIR'?'green':r.status==='TIDAK HADIR'?'#c0141c':'#b8860b';
+      tableRows+=`<tr${i%2===1?' style="background:#f9f9f9"':''}><td style="text-align:center">${r.no}</td><td><b>${r.nama}</b></td><td>${r.org}</td><td style="text-align:center">${r.tim}</td><td>${r.tanggal}</td><td style="color:${statusColor};text-align:center;font-weight:700">${r.status}</td><td style="font-size:11px">${r.waktu}</td></tr>`;
     });
     const win=window.open('','_blank','width=950,height=700');
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rekap Absensi Satgas</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#111}h1{font-size:17px;margin:0 0 3px}p{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#c0141c;color:#fff;padding:7px 9px;text-align:left;letter-spacing:0.5px}td{padding:6px 9px;border-bottom:1px solid #e5e5e5;vertical-align:top}@media print{body{margin:14px}}</style></head><body><h1>REKAP ABSENSI SATGAS \u2014 ${timLabel.toUpperCase()}</h1><p>SMAN 14 Depok \u2014 MPK &amp; OSIS &mdash; Dicetak: ${new Date().toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</p><table><thead><tr><th>#</th><th>Nama</th><th>Org</th><th>Tim</th><th>Tanggal</th><th>Status</th><th>Waktu Scan</th></tr></thead><tbody>${tableRows}</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>`);
@@ -3168,15 +3211,11 @@ async function autoRotateSatgasIfNeeded(){
     const todayStr = nowWIB.getUTCFullYear()+'-'+String(nowWIB.getUTCMonth()+1).padStart(2,'0')+'-'+String(nowWIB.getUTCDate()).padStart(2,'0');
     if(cfg.lastRotateDate && cfg.lastRotateDate===todayStr) return;
     const dayOfWeekWIB = nowWIB.getUTCDay();
-    if(dayOfWeekWIB !== 6) return;
-    const curWeekTims = cfg.weekTims||[5,1,2,3,4];
-    const newWeekTims = [
-      curWeekTims[4],
-      curWeekTims[0],
-      curWeekTims[1],
-      curWeekTims[2],
-      curWeekTims[3]
-    ];
+    const hourWIB = nowWIB.getUTCHours();
+    if(dayOfWeekWIB !== 5 || hourWIB < 18) return;
+    const nowWeekTims = computeWeekTims(new Date(Date.UTC(nowWIB.getUTCFullYear(),nowWIB.getUTCMonth(),nowWIB.getUTCDate())));
+    const nextMon = new Date(Date.UTC(nowWIB.getUTCFullYear(),nowWIB.getUTCMonth(),nowWIB.getUTCDate()+3));
+    const newWeekTims = computeWeekTims(nextMon);
     await setDoc(doc(db,'satgas_config','schedule'),{weekTims:newWeekTims,lastRotateDate:todayStr},{merge:true});
   }catch(e){}
 }
@@ -4911,6 +4950,65 @@ function hideLoader(){
   if(el && !el.classList.contains('hide')) el.classList.add('hide');
 }
 
+
+async function autoRecordTidakHadir(){
+  try{
+    const nowRaw = new Date();
+    const wibOff = 7*60;
+    const nowWIB = new Date(nowRaw.getTime() + (wibOff - nowRaw.getTimezoneOffset())*60000);
+    const hourWIB = nowWIB.getUTCHours();
+    const minWIB  = nowWIB.getUTCMinutes();
+    const dayWIB  = nowWIB.getUTCDay();
+    if(dayWIB===0||dayWIB===6) return;
+    if(hourWIB < 17) return;
+    const todayStr = nowWIB.getUTCFullYear()+'-'+String(nowWIB.getUTCMonth()+1).padStart(2,'0')+'-'+String(nowWIB.getUTCDate()).padStart(2,'0');
+    const lsKey = 'mpos_alfa_recorded_'+todayStr;
+    if(localStorage.getItem(lsKey)) return;
+    const cfgSnap = await getDoc(doc(db,'satgas_config','schedule'));
+    if(!cfgSnap.exists()) return;
+    const cfg = cfgSnap.data();
+    const timsData = cfg.tims||{};
+    function computeTimForToday(){
+      const BASE=[1,2,3,4,5]; const REF_YEAR=2026; const REF_WEEK=18;
+      function isoWeek(dt){ const d=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate())); const dn=d.getUTCDay()||7; d.setUTCDate(d.getUTCDate()+4-dn); const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1)); return Math.ceil((((d-ys)/86400000)+1)/7); }
+      const curYear=nowWIB.getUTCFullYear(); const curWeek=isoWeek(new Date(curYear,nowWIB.getUTCMonth(),nowWIB.getUTCDate()));
+      let weekDiff=(curYear===REF_YEAR)?(curWeek-REF_WEEK):((curYear-REF_YEAR)*52+(curWeek-REF_WEEK));
+      const shift=((weekDiff%5)+5)%5;
+      const rotated=[...BASE.slice(shift),...BASE.slice(0,shift)];
+      const dayMap={1:0,2:1,3:2,4:3,5:4};
+      return rotated[dayMap[dayWIB]]||null;
+    }
+    const timNum = computeTimForToday();
+    if(!timNum) return;
+    const tim = timsData[timNum]||{mpk:[],osis:[]};
+    const members = [];
+    (tim.mpk||[]).forEach(n=>members.push({nama:n,org:'mpk',tim:timNum}));
+    (tim.osis||[]).forEach(n=>members.push({nama:n,org:'osis',tim:timNum}));
+    const existSnap = await getDocs(query(collection(db,'absensi_satgas'),where('tanggal','==',todayStr),where('tim','==',timNum)));
+    const sudahAbsen = new Set();
+    existSnap.forEach(d=>{ const nm=(d.data().nama||'').toLowerCase().trim(); sudahAbsen.add(nm); });
+    const DAYS_WIB=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    const MONTHS_WIB=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const tanggalStr = DAYS_WIB[dayWIB]+', '+nowWIB.getUTCDate()+' '+MONTHS_WIB[nowWIB.getUTCMonth()]+' '+nowWIB.getUTCFullYear();
+    const hari = DAYS_WIB[dayWIB];
+    const batch_promises = [];
+    for(const m of members){
+      const key = (m.nama||'').toLowerCase().trim();
+      if(!sudahAbsen.has(key)){
+        batch_promises.push(addDoc(collection(db,'absensi_satgas'),{
+          uid:'',nama:m.nama,tim:timNum,org:m.org,
+          dicatatOleh:'SISTEM',dicatatUid:'auto',
+          tanggal:todayStr,tanggalStr,hari,
+          waktuWIB:'TIDAK HADIR',status:'TIDAK HADIR',
+          autoAlfa:true,ts:serverTimestamp()
+        }));
+      }
+    }
+    await Promise.all(batch_promises);
+    localStorage.setItem(lsKey,'1');
+  }catch(e){ console.error('autoRecordTidakHadir error:',e); }
+}
+
 async function init(){
   const loaderTimeout = setTimeout(hideLoader, 2500);
   const forceHide = setTimeout(hideLoader, 5000);
@@ -4964,7 +5062,10 @@ async function init(){
     try{ loadPublicEvents(); }catch(e){}
     try{ loadPublicForms(); }catch(e){}
     try{ loadStrukturPublic(); }catch(e){}
+    try{ autoRotateSatgasIfNeeded(); }catch(e){}
+    try{ autoRecordTidakHadir(); }catch(e){}
   }, 200);
+  setInterval(()=>{ try{ autoRecordTidakHadir(); }catch(e){} try{ autoRotateSatgasIfNeeded(); }catch(e){} }, 5*60*1000);
 }
 
 init();
