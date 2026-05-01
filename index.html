@@ -762,6 +762,7 @@ footer{background:#111;border-top:1px solid rgba(255,255,255,0.06);padding:34px 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAC3ztB9ibKsJs3ZzMGv7mor0-LNI3vkmI",
@@ -774,6 +775,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const DAYS_ID = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -1051,6 +1053,7 @@ window.doLogin = async function(){
       errEl.textContent='Password salah.'; errEl.style.display='block'; return;
     }
     recordLoginAttempt(true);
+    try{ await signInAnonymously(auth); }catch(e){}
     const remember = document.getElementById('rememberMe').checked;
     
     currentUser = {...data, uid: id, org:selectedOrg, username, role:data.role, name:data.name, jabatan:data.jabatan, canPost:!!data.canPost, canManage:!!data.canManage};
@@ -1112,6 +1115,7 @@ window.addEventListener('storage', function(e){
 window.doLogout = async function(){
   await cleanupMeet();
   if(meetListenerUnsub){ meetListenerUnsub(); meetListenerUnsub=null; }
+  try{ await signOut(auth); }catch(e){}
   localStorage.removeItem('mpos_session');
   sessionStorage.removeItem('mpos_session');
   currentUser = null;
@@ -4906,7 +4910,12 @@ function hideLoader(){
 }
 
 async function init(){
-  const loaderTimeout = setTimeout(hideLoader, 3000);
+  const loaderTimeout = setTimeout(hideLoader, 2500);
+  const forceHide = setTimeout(hideLoader, 5000);
+
+  try {
+    await signInAnonymously(auth);
+  } catch(e) {}
 
   const session = checkSession();
   if(session){
@@ -4923,25 +4932,26 @@ async function init(){
           localStorage.setItem('mpos_session', JSON.stringify({...currentUser, expires: session.expires, remember: session.remember}));
         }
         clearTimeout(loaderTimeout);
+        clearTimeout(forceHide);
         hideLoader();
         enterDash();
       } else {
         localStorage.removeItem('mpos_session');
         sessionStorage.removeItem('mpos_session');
         clearTimeout(loaderTimeout);
+        clearTimeout(forceHide);
         hideLoader();
       }
     }catch(e){
       localStorage.removeItem('mpos_session');
       sessionStorage.removeItem('mpos_session');
       clearTimeout(loaderTimeout);
+      clearTimeout(forceHide);
       hideLoader();
-      if(e.message !== 'timeout'){
-        showNotif('Tidak bisa terhubung ke server. Buka via web server, bukan file://', 'error');
-      }
     }
   } else {
     clearTimeout(loaderTimeout);
+    clearTimeout(forceHide);
     hideLoader();
   }
 
@@ -4952,7 +4962,7 @@ async function init(){
     try{ loadPublicEvents(); }catch(e){}
     try{ loadPublicForms(); }catch(e){}
     try{ loadStrukturPublic(); }catch(e){}
-  }, 100);
+  }, 200);
 }
 
 init();
