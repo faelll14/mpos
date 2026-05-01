@@ -893,6 +893,7 @@ async function verifyPassword(inputPw, storedPw){
 }
 
 
+async function getClientInfo(){
   let ip='unknown', city='unknown', country='unknown';
   try{
     const r = await fetch('https://ipapi.co/json/',{signal:AbortSignal.timeout(3000)});
@@ -3305,7 +3306,7 @@ async function loadScanner(){
   async function ensureJsQR(){
     if(window.jsQR) return true;
     const cdns = [
-      'https:
+      'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
       'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'
     ];
     for(const src of cdns){
